@@ -65,7 +65,11 @@ Le dépôt existant inspecté est **alisurvinted-lgtm/Vinted-manager-**, identif
 
 Le nom diffère du nom `vinted-manager` nécessaire à l’adresse demandée. La tentative de renommage de **ce même dépôt** a reçu **HTTP 403 — Resource not accessible by integration**. Les droits de modification de code et de workflow ne donnent pas à l’intégration le droit d’administration du dépôt.
 
-La source et la configuration de publication sont préparées pour `main`. Le workflow contrôle d’abord le nom attendu et s’arrête avant Pages tant qu’il n’est pas corrigé. Le renommage manuel et le lancement du workflow sont décrits dans [DEPLOIEMENT_GITHUB_PAGES.md](./DEPLOIEMENT_GITHUB_PAGES.md).
+Le code et la configuration ont été envoyés sur **`main`**, commit initial **`b0800c99183342899fb4957d40e28e7019aff42d`**. L’arbre distant a été comparé à la sélection des 46 fichiers sources : aucun export, profil ni résultat de test n’y figure.
+
+La [première exécution Actions](https://github.com/alisurvinted-lgtm/Vinted-manager-/actions/runs/43764369777) s’est bien déclenchée, puis s’est arrêtée au contrôle du nom dans le job `configure`. La configuration Pages, le build GitHub et le déploiement n’ont pas été exécutés. Les **67 tests unitaires, 18 parcours navigateur et le build rapportés ici ont été exécutés et réussis localement dans Codex**.
+
+Le workflow contrôle le nom attendu et s’arrête avant Pages tant qu’il n’est pas corrigé. Le renommage manuel et le lancement du workflow sont décrits dans [DEPLOIEMENT_GITHUB_PAGES.md](./DEPLOIEMENT_GITHUB_PAGES.md).
 
 **Aucun fonctionnement d’un site HTTPS public n’est revendiqué tant que le déploiement n’a pas réussi et que l’adresse n’a pas été vérifiée.** L’état du commit envoyé et du workflow est indiqué dans le compte rendu final de la session.
 
