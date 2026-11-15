@@ -3026,3 +3026,17 @@ tbody tr:hover {
 .legacy-backups .settings-action strong {
   font-size: 10px;
 }
+/* Réserver une marge au-dessus de la navigation, y compris avec les polices de secours iOS/WebKit. */
+@media (max-width: 760px) {
+  .home-heading {
+    margin-bottom: 18px;
+  }
+  .home-heading > .add-button {
+    margin-top: 14px;
+  }
+  .home-heading ~ .metrics-grid .metric-card {
+    min-height: 142px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+}
