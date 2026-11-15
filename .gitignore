@@ -1,0 +1,25 @@
+node_modules/
+dist/
+*.tsbuildinfo
+playwright-report/
+test-results/
+.DS_Store
+.env*
+
+# Données locales et livrables : ne jamais publier de sauvegarde comptable.
+/livrables/
+/backups/
+/sauvegardes/
+/exports/
+/library-files/
+/shared/
+/scratch/
+vinted-manager-*.json
+ventes-vinted-*.csv
+*.csv
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.zip
+*.vmbackup

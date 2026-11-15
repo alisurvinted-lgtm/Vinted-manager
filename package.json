@@ -1,0 +1,47 @@
+{
+  "name": "vinted-manager",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build && npm run verify:dist",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "check": "npm run verify:source && npm run test && npm run build && npm run test:e2e",
+    "format": "prettier --write src tests e2e scripts .github *.ts *.json *.md index.html",
+    "format:check": "prettier --check src tests e2e scripts .github *.ts *.json *.md index.html",
+    "verify:dist": "node scripts/verify-dist.mjs",
+    "verify:source": "node scripts/verify-source.mjs"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.1.0",
+    "dexie": "^4.0.11",
+    "dexie-react-hooks": "^1.1.7",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.4.0",
+    "fake-indexeddb": "^6.0.0",
+    "prettier": "^3.10.1",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.0",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "overrides": {
+    "glob": "^14.0.6"
+  }
+}
