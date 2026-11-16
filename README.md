@@ -1,4 +1,4 @@
-# Vinted Manager
+# Vinted Manager V2
 
 Une application personnelle et gratuite pour suivre ses achats, son stock et ses ventes de vêtements. Interface en français, montants en euros, pensée pour iPhone et utilisable sur ordinateur.
 
@@ -27,11 +27,15 @@ Le dossier `dist/` contient l’application complète à héberger. Le service w
 1. Touchez **Ajouter un article**, indiquez son nom et son coût d’achat TTC. Le genre, la catégorie et la date sont déjà sélectionnés et restent modifiables.
 2. Ajoutez, si nécessaire, un ou plusieurs frais de **Boost Vinted** ou de **Nettoyage**.
 3. Depuis **Mes articles**, ouvrez un article et choisissez **Marquer comme vendu**. Indiquez le prix et la date de vente.
-4. Consultez immédiatement le chiffre d’affaires, le bénéfice, les cotisations et le stock dans **Accueil**. Le sélecteur permet de changer de mois.
+4. Consultez immédiatement le chiffre d’affaires, le bénéfice, les cotisations et le stock dans **Accueil**. Le sélecteur permet de changer de mois et d’année. Le bilan détaille les ventes, le prix moyen, le coût des articles vendus, les frais de boost/nettoyage et la comparaison avec le mois précédent.
 
 Les articles peuvent être recherchés, filtrés, modifiés, remis en stock ou supprimés avec confirmation. Le retour en stock efface le prix et la date de vente. L’historique de l’accueil montre les cinq dernières opérations réellement enregistrées, y compris une suppression.
 
 **Statistiques** affiche les douze mois de l’année sélectionnée, un graphique consultable au clavier ou au toucher, les ventes, les moyennes et le stock actuel. Un mois sans vente reste à zéro. Le tableau mensuel fournit aussi les valeurs du graphique en texte.
+
+Le graphique de l’accueil permet de sélectionner un mois. Dans l’historique des statistiques, toucher le nom d’un mois ouvre son bilan. Les douze mois sont calculés automatiquement, sans créer d’archives supplémentaires.
+
+**Mes articles → Importer depuis Vinted** explique comment demander une copie officielle des données. Aucun format transactionnel de compte classique français n’est confirmé à ce stade : l’import reste désactivé et aucun fichier n’est lu. Les sauvegardes Vinted Manager se restaurent toujours dans les paramètres. Voir [VINTED_IMPORT.md](./VINTED_IMPORT.md) pour les sources officielles et les limites.
 
 Les paramètres sont accessibles depuis l’icône en haut à droite ou depuis la barre latérale sur ordinateur.
 
@@ -48,6 +52,9 @@ L’arrondi est effectué **vente par vente**, au centime le plus proche, avec a
 
 Exemple : achat de 15 €, vente de 35 €, boost de 2 €, nettoyage de 1 €, taux de 12,3 % → cotisations de **4,31 €**, bénéfice de **12,69 €**.
 
+- Les **achats TTC du mois** suivent la date d’achat, y compris pour les articles encore en stock. Le **coût des articles vendus** suit la date de vente, même si leur achat a eu lieu un autre mois ou une autre année. Ces deux montants ne sont jamais additionnés pour calculer le bénéfice.
+- Les frais de boost/nettoyage du bilan sont ceux des articles vendus durant le mois. Le modèle existant ne contient pas de date de paiement des frais : aucune date n’est inventée.
+- La comparaison montre les valeurs des deux mois et leur écart. Un pourcentage n’est affiché que pour une référence strictement positive et une valeur courante non négative.
 - Le chiffre d’affaires et les bénéfices utilisent la **date de vente**, jamais la date d’achat.
 - Les articles en stock n’entrent ni dans le chiffre d’affaires ni dans le bénéfice réalisé.
 - Le taux initial est **12,3 %**. Sa modification recalcule **toutes les ventes, passées incluses** ; aucun historique fiscal de taux n’est conservé.
@@ -57,7 +64,7 @@ Exemple : achat de 15 €, vente de 35 €, boost de 2 €, nettoyage de 1 €, 
 
 ## Stockage et sauvegardes
 
-Les données sont conservées dans **IndexedDB avec Dexie**, dans la base `vinted-manager`. Les écritures d’articles et leur historique sont transactionnelles. Le schéma dispose de versions : v1 (articles, paramètres), v2 (ajout de l’historique). La migration v1 → v2 conserve les articles et paramètres existants.
+Les données sont conservées dans **IndexedDB avec Dexie**, dans la base `vinted-manager`. Les écritures d’articles et leur historique sont transactionnelles. Le schéma dispose de versions : v1 (articles, paramètres), v2 (ajout de l’historique). La migration v1 → v2 conserve les articles et paramètres existants. **La version 2.0 de l’application ne change pas le schéma IndexedDB v2, le nom de la base ni le format des sauvegardes.** Le bilan est calculé en lecture seule à partir des articles existants.
 
 ### Exporter et restaurer
 
@@ -106,7 +113,7 @@ Le guide complet est dans [DEPLOIEMENT_GITHUB_PAGES.md](./DEPLOIEMENT_GITHUB_PAG
 
 1. Utilisez un dépôt **public** pour bénéficier de GitHub Pages gratuitement sans abonnement.
 2. Placez les fichiers sources à la racine de la branche `main`, y compris `.github/workflows/deploy-pages.yml`.
-3. Dans **Settings → Pages → Build and deployment → Source**, sélectionnez **GitHub Actions**. Le workflow tente aussi l’activation automatique si les permissions du dépôt l’autorisent.
+3. Dans **Settings → Pages → Build and deployment → Source**, sélectionnez **GitHub Actions**. Ce réglage est déjà actif dans le dépôt existant. Le workflow consulte Pages avec `enablement: false` ; il ne tente pas de recréer le site.
 4. Chaque push sur `main` déclenche les tests, le build avec le bon chemin, la vérification des fichiers statiques, les tests Chromium/WebKit puis le déploiement.
 5. **Actions → Déployer sur GitHub Pages → Run workflow** permet également un lancement manuel.
 6. L’URL effective apparaît dans le job `deploy` et dans **Settings → Pages**.
@@ -115,15 +122,15 @@ Le workflow publie uniquement `dist/`, après vérification du nom du dépôt de
 
 ```bash
 # Vérifier localement un site de projet GitHub Pages
-PAGES_BASE_PATH=/vinted-manager/ npm run build
-PAGES_BASE_PATH=/vinted-manager/ npm run test:e2e
+PAGES_BASE_PATH=/Vinted-manager/ npm run build
+PAGES_BASE_PATH=/Vinted-manager/ npm run test:e2e
 ```
 
 Le manifeste, les icônes, le script d’enregistrement, le scope du service worker et le repli hors ligne sont vérifiés sous ce chemin. Gardez la même adresse après installation ; un changement d’origine requiert de transférer la sauvegarde chiffrée.
 
 Pour tous les hébergeurs : servez les fichiers JavaScript, le manifeste et `sw.js` avec leurs types MIME normaux ; évitez un cache immuable sur `index.html`, `sw.js` et `manifest.webmanifest`. Les assets contenant un hash peuvent être mis en cache longtemps. Conservez la même adresse d’application pour retrouver vos données locales.
 
-**Aucun déploiement public n’a encore été effectué dans cette session.** Après l’envoi des sources sur un dépôt public et l’activation de Pages, chaque push sur `main` déclenche automatiquement la publication.
+Le dépôt existant est [alisurvinted-lgtm/Vinted-manager](https://github.com/alisurvinted-lgtm/Vinted-manager). L’adresse du site conserve la casse réelle : **https://alisurvinted-lgtm.github.io/Vinted-manager/**. Ne renommez pas le dépôt et n’effacez pas les données Safari pour appliquer une mise à jour. L’état vérifié de cette livraison est décrit dans [VALIDATION.md](./VALIDATION.md).
 
 ## Installation sur iPhone
 
@@ -151,6 +158,7 @@ npm run test:e2e
 `npm run check` enchaîne tests unitaires, build et tests navigateur (une fois les navigateurs installés). Les navigateurs ne sont nécessaires qu’au développement.
 
 - **Vitest + fake-indexeddb** : création, modification, suppression, changement de statut, calculs exacts, taux de 12,3 %, frais multiples, CA mensuel, exclusion du stock, changement de date de vente, décimales, moyennes, pertes, export/restauration JSON, validation, annulation transactionnelle, persistance après réouverture et migration de schéma.
+- **V2** : achats d’un mois vendus l’année suivante, distinction achats/coût des ventes, frais rattachés à la vente, mois vides, comparaison, changements d’année et conservation intégrale d’une ancienne base après consultation et sélection répétée de fichiers non pris en charge.
 - **Playwright** : parcours complet dans Chromium et WebKit au format iPhone ; sauvegarde téléchargée puis réimportée, confirmation et annulation, fichier invalide, rechargement, calculs visibles, filtres et recherche, statistiques, absence de débordement horizontal et rechargement/ajout hors ligne sur le build de production.
 
 Les tests navigateur vérifient aussi le manifeste et la portée du service worker, ainsi que la conservation d’IndexedDB après fermeture complète et relance du navigateur avec le même profil. Les données de test sont isolées et ne sont pas intégrées à l’application livrée.
@@ -165,13 +173,17 @@ src/
   components/
     ArticleForm.tsx            Formulaire d’ajout, édition et vente
     ArticleDetail.tsx          Fiche et actions sur un article
-    MonthlyChart.tsx           Graphique SVG léger, sans bibliothèque de graphiques
+    MonthlyChart.tsx           Graphique SVG léger, sélection du mois
+    MonthlyReport.tsx          Bilan détaillé et comparaison mensuelle
+    VintedImport.tsx           Guide officiel, état de prise en charge explicite
     Settings.tsx               Taux, export, import, aide à l’installation
     ui.tsx                     Éléments d’interface partagés
   lib/
     model.ts                   Types et valeurs autorisées
     paths.ts                   Normalisation du chemin de déploiement Pages
     accounting.ts              Calculs monétaires et agrégations
+    periods.ts                 Mois, années et changement d’année
+    vinted-import.ts           Sources vérifiées, refus des formats non confirmés
     crypto-backup.ts           AES-256-GCM, PBKDF2 et enveloppe authentifiée
     validation.ts              Validation métier et sauvegardes
     db.ts                      IndexedDB, migrations et écritures

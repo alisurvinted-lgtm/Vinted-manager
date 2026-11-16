@@ -1,25 +1,28 @@
-# Validation de Vinted Manager : confidentialité et déploiement
+# Validation de Vinted Manager V2
 
-Contrôles exécutés le **15 novembre 2026**, sous Linux Codex avec Node.js **24.22.1**.
+Contrôles exécutés le **16 novembre 2026**, sous Linux Codex avec Node.js **24.22.1**.
 
 ## Résultats réellement exécutés
 
 | Contrôle                                          | Résultat                                                                                                                                        |
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Vérification du code et sélection de publication  | 46 fichiers sources autorisés ; pas de signature de secret détectée ; pas d’API réseau ou d’exécution HTML/JS dynamique dans le code applicatif |
-| Vitest 5.1                                        | **67 tests réussis**, 4 fichiers                                                                                                                |
+| Vérification du code et sélection de publication  | 54 fichiers sources autorisés ; pas de signature de secret détectée ; pas d’API réseau ou d’exécution HTML/JS dynamique dans le code applicatif |
+| Vitest 5.1                                        | **95 tests réussis**, 6 fichiers                                                                                                                |
 | TypeScript strict                                 | Réussi avec `tsc -b`                                                                                                                            |
-| Build Vite / PWA                                  | Réussi sous **`/vinted-manager/`**                                                                                                              |
-| Contrôle de l’artefact statique                   | **13 fichiers autorisés**, environ 449 Kio précachés ; aucun export, profil de navigateur ou fichier de données                                 |
-| Playwright Chromium                               | **9 tests réussis**                                                                                                                             |
-| Playwright WebKit au format iPhone 13             | **9 tests réussis**                                                                                                                             |
+| Build Vite / PWA                                  | Réussi sous **`/Vinted-manager/`**                                                                                                              |
+| Contrôle de l’artefact statique                   | **13 fichiers autorisés**, environ 465 Kio précachés ; aucun export, profil de navigateur ou fichier de données                                 |
+| Playwright Chromium                               | **11 tests réussis**                                                                                                                            |
+| Playwright WebKit au format iPhone 13             | **11 tests réussis**                                                                                                                            |
 | Audit npm des dépendances de production déclarées | **0 signalement** avec `--omit=dev`                                                                                                             |
 | Audit npm complet                                 | **0 critique, élevé ou modéré ; 4 faibles** dans la même chaîne de compilation liée à deepmerge                                                 |
 
-La commande complète exécutée sur les sources finales :
+Commandes exécutées sur les sources finales (les étapes de `npm run check`) :
 
 ```bash
-PAGES_BASE_PATH=/vinted-manager/ npm run check
+npm run verify:source
+npm test
+PAGES_BASE_PATH=/Vinted-manager/ npm run build
+PAGES_BASE_PATH=/Vinted-manager/ npm run test:e2e -- --workers=2
 ```
 
 Dans cet environnement uniquement, les navigateurs étaient installés dans `/tmp/vinted-browsers` et le contrôle préalable du cache système `ldconfig` était désactivé après fourniture locale des bibliothèques manquantes. **Aucun test navigateur n’a été ignoré**. Sur un poste habituel, installer les navigateurs avec `npx playwright install --with-deps chromium webkit`.
@@ -47,7 +50,7 @@ Création, modification, vente, retour en stock, suppression avec confirmation, 
 
 La recherche, les filtres, les douze mois de statistiques, l’absence de débordement mobile, les quatre indicateurs visibles au-dessus de la navigation iPhone, la persistance après rechargement et après **fermeture complète puis relance du navigateur** passent.
 
-Le manifeste, son `start_url`, son `scope`, les icônes Apple/manifest, le script et la portée du worker sont vérifiés sous `/vinted-manager/`. Le rechargement et l’ajout d’articles sans réseau sont testés après le premier chargement complet.
+Le manifeste, son `start_url`, son `scope`, les icônes Apple/manifest, le script et la portée du worker sont vérifiés sous `/Vinted-manager/`. Le rechargement et l’ajout d’articles sans réseau sont testés après le premier chargement complet.
 
 ## Contrôles négatifs des fichiers publiés
 
@@ -59,19 +62,28 @@ Les contrôles de publication ont été volontairement soumis à :
 
 Tous ont été **refusés**. Les fichiers temporaires ont été retirés et les contrôles normaux passent de nouveau. Ces vérifications ne remplacent pas une revue humaine et ne détectent pas tous les secrets possibles ; les fichiers réellement sélectionnés ont aussi été inspectés par leur rôle et leur contenu source.
 
+## Tests spécifiques V2
+
+- Achat en décembre 2025 et vente en janvier 2026 : le coût d’acquisition et les frais apparaissent dans le bilan de vente, l’achat TTC dans le mois d’achat ; le stock ne crée aucun CA/bénéfice.
+- Séparation de plusieurs boosts et du nettoyage, changement de date de vente, modification du taux, mois vides, moyennes, écarts et absence de pourcentages trompeurs.
+- Changement d’année, limites de dates, historique cliquable et sélection de mois dans le graphique. Une année contenant uniquement un achat est disponible dans les statistiques.
+- Ancienne base v1 réouverte/migrée par le schéma existant v2 : articles, vente, frais, taux et historique conservés après calculs et sélections répétées de fichiers.
+- Base navigateur existante conservée à l’identique après changement de mois/année, consultation des bilans, sélection de fichiers refusés et rechargement hors ligne, dans les deux moteurs.
+- Registre de formats Vinted pris en charge vide. Fichiers incomplets, HTML actif, ZIP corrompu, CSV de remboursements/annulations, fichier trop grand et sélection répétée refusés **sans lire le contenu ni écrire en base**. Absence de contenu de fichier dans les requêtes observées.
+
+Ces refus ne prouvent pas un futur analyseur : aucun import de transactions Vinted n’est actuellement activé. L’aperçu, la correction et la détection métier des doublons attendent une structure officielle réelle vérifiée, comme expliqué dans [VINTED_IMPORT.md](./VINTED_IMPORT.md).
+
+La V2 ne change ni le nom ni le schéma v2 d’IndexedDB, ni les formats des sauvegardes. Les modules de base, validation métier et chiffrement ne sont pas modifiés. Les tests de sauvegarde chiffrée et de migration restent actifs.
+
 ## Dépôt et état du déploiement
 
-Le dépôt existant inspecté est **alisurvinted-lgtm/Vinted-manager-**, identifiant stable **1459243181**, public et initialement vide. Il est éligible au mode gratuit prévu ; aucun second dépôt n’est créé.
+Le dépôt vérifié est **[alisurvinted-lgtm/Vinted-manager](https://github.com/alisurvinted-lgtm/Vinted-manager)**, public, identifiant stable **1459243181**, branche **main**. Aucun second dépôt n’est créé.
 
-Le nom diffère du nom `vinted-manager` nécessaire à l’adresse demandée. La tentative de renommage de **ce même dépôt** a reçu **HTTP 403 — Resource not accessible by integration**. Les droits de modification de code et de workflow ne donnent pas à l’intégration le droit d’administration du dépôt.
+Pages est configuré avec `build_type: workflow` et HTTPS. L’URL réelle conserve la casse : **https://alisurvinted-lgtm.github.io/Vinted-manager/**. Le workflow lit le site existant avec `enablement: false` et `pages: read`, sans tentative de création exigeant une permission d’administration. Les contrôles d’identité du dépôt, de visibilité et de chemin restent actifs.
 
-Le code et la configuration ont été envoyés sur **`main`**, commit initial **`b0800c99183342899fb4957d40e28e7019aff42d`**. L’arbre distant a été comparé à la sélection des 46 fichiers sources : aucun export, profil ni résultat de test n’y figure.
+La version précédant la V2 a été publiée avec succès par [cette exécution Actions](https://github.com/alisurvinted-lgtm/Vinted-manager/actions/runs/43786561985) et vérifiée en HTTPS, WebKit iPhone, hors ligne, après redémarrage du navigateur et par export/restauration chiffrée. Ce lien concerne cette version précédente, pas la publication V2.
 
-La [première exécution Actions](https://github.com/alisurvinted-lgtm/Vinted-manager-/actions/runs/43764369777) s’est bien déclenchée, puis s’est arrêtée au contrôle du nom dans le job `configure`. La configuration Pages, le build GitHub et le déploiement n’ont pas été exécutés. Les **67 tests unitaires, 18 parcours navigateur et le build rapportés ici ont été exécutés et réussis localement dans Codex**.
-
-Le workflow contrôle le nom attendu et s’arrête avant Pages tant qu’il n’est pas corrigé. Le renommage manuel et le lancement du workflow sont décrits dans [DEPLOIEMENT_GITHUB_PAGES.md](./DEPLOIEMENT_GITHUB_PAGES.md).
-
-**Aucun fonctionnement d’un site HTTPS public n’est revendiqué tant que le déploiement n’a pas réussi et que l’adresse n’a pas été vérifiée.** L’état du commit envoyé et du workflow est indiqué dans le compte rendu final de la session.
+La publication V2 est déclenchée par le push de ces sources sur `main`. Son résultat doit être contrôlé dans [le workflow du dépôt](https://github.com/alisurvinted-lgtm/Vinted-manager/actions/workflows/deploy-pages.yml), puis sur le site ; les résultats locaux ci-dessus ne suffisent pas à revendiquer une publication. Le compte rendu final précise l’exécution et la vérification du site de cette livraison.
 
 ## Limites
 

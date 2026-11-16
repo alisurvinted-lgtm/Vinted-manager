@@ -1,4 +1,5 @@
 import { MAX_CENTS, type Article } from "./model";
+import { isMonth, moveMonth } from "./periods";
 
 // Conversion décimale en entier : aucun calcul financier sur un montant en euros flottant.
 export function parseMoney(value: string): number {
@@ -45,11 +46,37 @@ export function totals(articles: Article[], rateBps: number, period?: string) {
     (a) => a.status === "sold" && (!period || a.saleDate?.startsWith(period)),
   );
   const stock = articles.filter((a) => a.status === "stock");
+  const bought = articles.filter(
+    (a) => !period || a.purchaseDate.startsWith(period),
+  );
+  const acquisitionCost = sold.reduce((sum, a) => sum + a.purchasePrice, 0);
+  const boostFees = sold.reduce(
+    (sum, a) =>
+      sum +
+      a.fees
+        .filter((f) => f.type === "Boost Vinted")
+        .reduce((fees, f) => fees + f.amount, 0),
+    0,
+  );
+  const cleaningFees = sold.reduce(
+    (sum, a) =>
+      sum +
+      a.fees
+        .filter((f) => f.type === "Nettoyage")
+        .reduce((fees, f) => fees + f.amount, 0),
+    0,
+  );
   const revenue = sold.reduce((sum, a) => sum + a.salePrice!, 0);
   const net = sold.reduce((sum, a) => sum + profit(a, rateBps), 0);
   return {
     revenue,
     net,
+    acquisitionCost,
+    boostFees,
+    cleaningFees,
+    salesFees: boostFees + cleaningFees,
+    purchaseOutflow: bought.reduce((sum, a) => sum + a.purchasePrice, 0),
+    purchasedCount: bought.length,
     contributions: sold.reduce(
       (sum, a) => sum + contribution(a.salePrice!, rateBps),
       0,
@@ -73,4 +100,28 @@ export function monthlyTotals(
     month: `${year}-${String(i + 1).padStart(2, "0")}`,
     ...totals(articles, rateBps, `${year}-${String(i + 1).padStart(2, "0")}`),
   }));
+}
+
+export function monthlyReport(
+  articles: Article[],
+  rateBps: number,
+  month: string,
+) {
+  if (!isMonth(month))
+    throw new Error("Choisissez un mois et une année valides.");
+  const previousMonth = moveMonth(month, -1);
+  const current = totals(articles, rateBps, month);
+  const previous = previousMonth
+    ? totals(articles, rateBps, previousMonth)
+    : null;
+  return { month, previousMonth, current, previous };
+}
+export function changePercent(
+  current: number,
+  previous: number,
+): number | null {
+  // Les écarts en euros restent lisibles quand la référence est nulle ou négative.
+  return previous > 0 && current >= 0
+    ? Math.round(((current - previous) * 10000) / previous)
+    : null;
 }

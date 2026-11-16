@@ -21,6 +21,7 @@ export const sourceFiles = [
   "VALIDATION.md",
   "DEPLOIEMENT_GITHUB_PAGES.md",
   "SECURITE.md",
+  "VINTED_IMPORT.md",
 ];
 export async function publicationFiles() {
   const result = [...sourceFiles];

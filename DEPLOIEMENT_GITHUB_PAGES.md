@@ -1,69 +1,53 @@
 # Déploiement du dépôt existant et installation iPhone
 
-## Dépôt inspecté
+## Adresse et dépôt
 
-Le dépôt existant est **[alisurvinted-lgtm/Vinted-manager-](https://github.com/alisurvinted-lgtm/Vinted-manager-)**, public, identifiant GitHub `1459243181`. Il était vide lors de l’inspection. **Aucun second dépôt n’est créé.**
+- Dépôt existant public : **[alisurvinted-lgtm/Vinted-manager](https://github.com/alisurvinted-lgtm/Vinted-manager)**, identifiant stable `1459243181`, branche `main`.
+- Application : **https://alisurvinted-lgtm.github.io/Vinted-manager/**. Conservez la majuscule `V` dans le chemin ; un chemin écrit autrement peut renvoyer 404.
+- Le dépôt a déjà été renommé et Pages est déjà configuré avec la source **GitHub Actions**. Aucun second dépôt, changement de visibilité, abonnement ou serveur n’est nécessaire.
 
-Le nom comporte un tiret final et diffère du nom `vinted-manager` demandé. La connexion permet d’envoyer le code et les workflows, mais l’API de renommage a renvoyé **403 — Resource not accessible by integration**. Le rôle administrateur du propriétaire ne donne pas automatiquement cette permission à l’intégration.
+L’état réellement vérifié de chaque livraison figure dans [VALIDATION.md](./VALIDATION.md).
 
-## Action manuelle nécessaire : corriger le nom
+## Déploiement automatique
 
-1. Ouvrez les **Settings** du dépôt existant avec votre compte GitHub.
-2. Dans **General → Repository name**, remplacez `Vinted-manager-` par **`vinted-manager`**, sans tiret final, puis cliquez **Rename**.
-3. Ne créez pas un nouveau dépôt. Le renommage conserve son historique et son identifiant.
-4. Ouvrez **Actions → Déployer sur GitHub Pages → Run workflow**, branche **main**.
+Chaque push sur `main` déclenche [Déployer sur GitHub Pages](https://github.com/alisurvinted-lgtm/Vinted-manager/actions/workflows/deploy-pages.yml) :
 
-Le workflow vérifie le dépôt cible avant d’activer Pages. Tant que le nom n’est pas corrigé, il s’arrête avec un message explicite et ne publie aucun site sous une autre adresse.
+1. `configure` vérifie l’identifiant du dépôt, sa visibilité publique, son nom et le chemin réel retourné par Pages.
+2. `build` installe les dépendances verrouillées, vérifie la sélection de sources, exécute l’audit, les tests unitaires, TypeScript, le build, le contrôle de l’artefact et les tests Chromium/WebKit.
+3. `deploy` publie uniquement les fichiers statiques autorisés de `dist/` avec les actions officielles épinglées à des commits.
 
-## Si GitHub demande l’activation de Pages
+Le chemin Vite est fourni automatiquement par Pages via `PAGES_BASE_PATH` ; le manifeste, les icônes, le scope du service worker et son cache suivent ce chemin. Un lancement manuel est possible dans **Actions → Déployer sur GitHub Pages → Run workflow → main**.
 
-Dans le dépôt renommé :
+### Correction de l’ancien blocage configure
 
-1. **Settings → Pages → Build and deployment → Source → GitHub Actions**.
-2. Si demandé, autorisez GitHub Actions dans **Actions** / **Settings → Actions → General**.
-3. Relancez **Actions → Déployer sur GitHub Pages → Run workflow → main**.
-4. Attendez que les jobs **configure**, **build** et **deploy** soient verts. L’URL confirmée apparaît dans `deploy` et dans **Settings → Pages**.
+`actions/configure-pages` utilise **`enablement: false`** pour consulter le site existant, avec `pages: read`. Le job ne tente plus de créer ou réactiver le site, opération qui exige une permission d’administration supplémentaire et avait renvoyé `Resource not accessible by integration`. Seul `deploy` possède `pages: write` et `id-token: write`. Les permissions générales d’écriture des workflows ne remplacent pas cette permission d’administration.
 
-GitHub Pages est gratuit pour ce dépôt public et les runners Linux standards utilisés. Aucun abonnement, domaine personnalisé payant, serveur ou compte dans l’application n’est nécessaire. Le workflow refuse un dépôt privé pour ne pas dépendre d’un forfait payant.
+Les réglages **Pages → Source : GitHub Actions**, **Enforce HTTPS** et les autorisations Actions déjà réalisés n’ont pas besoin d’être refaits.
 
-## Si l’envoi du code est bloqué
-
-Téléchargez l’archive source fournie avec cette livraison, puis placez son contenu à la racine de la branche `main` du **même dépôt existant**, dossier caché `.github` compris. N’envoyez pas le dossier de travail entier. L’archive source est construite à partir d’une liste fermée et ne contient ni sauvegarde comptable ni profil de navigateur.
-
-Avec Git sur un ordinateur, clonez le dépôt existant, copiez uniquement les fichiers de l’archive source dans ce clone, puis :
+## Vérification locale pour un développeur
 
 ```bash
-git add .github .gitignore src public scripts tests e2e index.html package.json package-lock.json tsconfig.json vite.config.ts vitest.config.ts playwright.config.ts README.md VALIDATION.md DEPLOIEMENT_GITHUB_PAGES.md SECURITE.md
-git commit -m "Protéger les sauvegardes et préparer GitHub Pages"
-git push origin main
+npm ci
+npx playwright install --with-deps chromium webkit
+PAGES_BASE_PATH=/Vinted-manager/ npm run check
 ```
 
-N’utilisez jamais `git add` sur des sauvegardes JSON/CSV, fichiers `.vmbackup`, données Safari, profils de navigateur ou archives personnelles. Ne partagez aucun mot de passe ou token dans une conversation ou dans le dépôt.
+Le workflow utilise les runners Linux standards et GitHub Pages gratuit pour ce dépôt public. Il refuse un dépôt privé pour ne pas dépendre d’un forfait payant.
 
-## Ce que construit et publie Actions
+## Installer sur iPhone
 
-- Dépendances verrouillées par `npm ci`, audit, vérification du code, tests, build et tests Chromium/WebKit.
-- Chemin de base obtenu depuis la configuration réelle de Pages ; manifeste, icônes, worker et cache adaptés au sous-dossier.
-- Actions officielles épinglées à des commits ; permissions d’écriture limitées aux jobs qui en ont besoin.
-- Seulement les fichiers statiques autorisés de `dist/`. Aucun rapport de test, trace, capture, base IndexedDB, export ou sauvegarde n’est publié.
-- Déploiement automatique à chaque push sur `main` après correction du nom ; lancement manuel également possible.
+1. Ouvrez **https://alisurvinted-lgtm.github.io/Vinted-manager/** dans Safari, en navigation normale, puis attendez le chargement complet avec Internet.
+2. **Partager → Sur l’écran d’accueil → Ajouter** (ou « Ajouter à l’écran d’accueil », selon iOS). Activez **Ouvrir en tant qu’app** si proposé.
+3. Ouvrez l’icône. Après le premier chargement complet, les articles et formulaires restent accessibles hors ligne.
 
-## Installer sur iPhone après publication vérifiée
+Pour une installation existante, conservez la même adresse et touchez **Actualiser** quand la bannière de mise à jour apparaît, après avoir enregistré tout formulaire ouvert. N’effacez pas les données Safari et ne désinstallez pas l’application pour obtenir la mise à jour. Le cache des ressources et IndexedDB sont distincts : la mise à jour n’efface pas la base. La V2 ne change ni le schéma IndexedDB ni le format des sauvegardes.
 
-1. Ouvrez **l’URL confirmée par GitHub Pages** dans Safari, en navigation normale.
-2. Attendez le chargement complet avec une connexion Internet.
-3. **Partager → Sur l’écran d’accueil → Ajouter** (ou « Ajouter à l’écran d’accueil », selon iOS). Activez **Ouvrir en tant qu’app** si proposé.
-4. Ouvrez l’icône, ajoutez un article, fermez puis rouvrez l’application pour vérifier sa présence.
-5. Après le premier chargement complet, essayez le mode avion : les articles et formulaires restent accessibles.
+Les tests WebKit reproduisent le format iPhone ; le geste d’installation sur votre appareil physique ne peut pas être vérifié à distance.
 
-Les tests passent dans WebKit avec un format iPhone, mais le geste d’installation sur votre appareil physique n’est pas vérifiable à distance depuis cet environnement.
+## Confidentialité de la publication
 
-## Confidentialité et sauvegardes
+Seuls les fichiers choisis par `scripts/source-files.mjs` sont envoyés au dépôt. Aucune donnée comptable, sauvegarde `.vmbackup`, JSON personnel, CSV, archive, capture, trace ou profil de navigateur ne doit être publié. Le build possède aussi une liste fermée de fichiers statiques autorisés.
 
-Les données restent dans IndexedDB sur l’iPhone. La base active n’est pas chiffrée par cette application et dépend de la sécurité de l’appareil/Safari. Les sauvegardes `.vmbackup` sont chiffrées localement ; la phrase n’est ni enregistrée ni transmise. Conservez-la séparément : aucune récupération de l’ancien fichier n’est possible si elle est oubliée.
+Les données restent dans IndexedDB sur l’appareil. La base active n’est pas chiffrée par l’application et dépend de la sécurité de l’iPhone/Safari. Les sauvegardes `.vmbackup` sont chiffrées localement avec une phrase jamais conservée ni transmise. Dans Fichiers, choisissez **Sur mon iPhone** si vous ne voulez pas synchroniser l’export avec un fournisseur cloud.
 
-Dans Fichiers, choisissez **Sur mon iPhone** pour éviter un fournisseur de fichiers synchronisé. Le projet ne contrôle pas les sauvegardes système iCloud ou celles de votre ordinateur. Les anciens JSON et CSV restent en clair, avec avertissements explicites.
-
-Pour importer des données déjà présentes sur une autre origine, utilisez uniquement **Paramètres → Importer une sauvegarde** dans l’application. **Ne les envoyez jamais au dépôt GitHub.** Aucun import n’est lancé par le déploiement, et aucune donnée existante de votre iPhone n’est supprimée par cette mise à jour.
-
-Voir [SECURITE.md](./SECURITE.md) pour les protections et risques résiduels, et [VALIDATION.md](./VALIDATION.md) pour l’état réel des tests et du déploiement.
+Pour transférer des données, utilisez uniquement les sauvegardes dans l’application ; ne les envoyez jamais au dépôt. Voir [SECURITE.md](./SECURITE.md) pour les limites et [VINTED_IMPORT.md](./VINTED_IMPORT.md) pour la préparation de l’import officiel.

@@ -20,13 +20,24 @@ export function MonthlyChart({
   articles,
   rate,
   year,
+  activeMonth,
+  onMonthSelect,
 }: {
   articles: Article[];
   rate: number;
   year: number;
+  activeMonth?: string;
+  onMonthSelect?: (month: string) => void;
 }) {
   const rows = monthlyTotals(articles, rate, year);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [localSelection, setSelected] = useState<number | null>(null);
+  const selected = activeMonth?.startsWith(`${year}-`)
+    ? Number(activeMonth.slice(5, 7)) - 1
+    : localSelection;
+  function selectMonth(index: number) {
+    setSelected(selected === index ? null : index);
+    onMonthSelect?.(rows[index].month);
+  }
   const hasSales = rows.some((r) => r.soldCount > 0);
   const max = Math.max(
     1,
@@ -107,11 +118,11 @@ export function MonthlyChart({
                 role="button"
                 tabIndex={0}
                 aria-label={`${MONTHS[i]} ${year} : CA ${money(row.revenue)}, bénéfice ${money(row.net)}`}
-                onClick={() => setSelected(selected === i ? null : i)}
+                onClick={() => selectMonth(i)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    setSelected(selected === i ? null : i);
+                    selectMonth(i);
                   }
                 }}
               >

@@ -75,6 +75,14 @@ Safari peut supprimer des données locales ou les rendre indisponibles après un
 - Pas de journal applicatif de données privées. Les appels console/debugger sont retirés du bundle et aucun gestionnaire d’erreur ne journalise l’objet d’erreur.
 - Les seules permissions utilisées concernent le stockage local/persistant et le service worker. Pas de caméra, microphone, localisation, notifications ni contacts.
 
+## Import Vinted : état de préparation
+
+Aucun analyseur de transactions Vinted n’est activé sans format officiel réellement vérifié. Le guide utilise uniquement deux liens d’aide officiels fixes, ouverts à la demande dans un nouvel onglet avec `noopener noreferrer`. L’application n’accède pas au compte et ne demande aucun identifiant Vinted.
+
+Le sélecteur de fichier n’examine que les métadonnées de taille (20 Mo maximum) et refuse ensuite tous les formats comme non pris en charge. Il ne lit, n’affiche, n’extrait, n’exécute, n’enregistre et ne transmet aucun contenu. Il n’appelle aucune écriture IndexedDB. Une extension ou un type MIME ne suffit pas à établir la provenance ou la structure d’un fichier. Il n’y a donc actuellement ni aperçu des transactions, ni détection métier de doublons, ni import de remboursement/annulation : ces fonctions attendent un format confirmé. La sélection répétée ne peut pas créer de doublons puisqu’aucune transaction n’est importée.
+
+La préparation du futur analyseur et les exigences de validation sont décrites dans [VINTED_IMPORT.md](./VINTED_IMPORT.md). Ne publiez jamais d’archive personnelle sur GitHub ; un exemple minimal entièrement anonymisé suffit à étudier la structure. Les sauvegardes de Vinted Manager restent traitées séparément, avec leurs protections cryptographiques existantes.
+
 ## CSP et limites de GitHub Pages
 
 La CSP est insérée tôt dans le HTML de production :
@@ -96,7 +104,7 @@ La CSP est une défense supplémentaire ; elle ne garantit pas l’absence de fu
 - Sélection fermée de fichiers sources, détection de signatures usuelles de secrets sans afficher leur contenu, exclusion des sauvegardes/CSV/profils/archives.
 - Contrôle fermé de `dist/` : seuls HTML, JS/CSS compilés, manifeste, worker et icônes connus sont publiables. Un fichier JSON comptable copié dans `public/` bloque la publication.
 - Aucun fichier de test n’est importé dans l’application. Les marqueurs de données synthétiques sont interdits dans le bundle.
-- `npm ci` et le lockfile fixent l’arbre de dépendances et leurs intégrités. Les actions GitHub officielles sont épinglées à des commits vérifiés ; les permissions d’écriture Pages sont limitées aux jobs de configuration/déploiement.
+- `npm ci` et le lockfile fixent l’arbre de dépendances et leurs intégrités. Les actions GitHub officielles sont épinglées à des commits vérifiés ; les permissions d’écriture Pages sont limitées au job de déploiement (configuration en lecture seule).
 - Les jetons de checkout ne sont pas conservés dans la configuration Git. Aucun artefact de tests, capture, trace ou profil de navigateur n’est publié. Seul `dist/` est transféré à Pages.
 - Le workflow refuse les dépôts privés pour rester dans l’utilisation gratuite prévue. Aucun autre dépôt n’est créé et aucun service payant n’est ajouté.
 

@@ -24,6 +24,7 @@ import {
   Shirt,
   Sparkles,
   WifiOff,
+  Upload,
   X,
 } from "lucide-react";
 import { db } from "./lib/db";
@@ -34,6 +35,9 @@ import { ArticleForm } from "./components/ArticleForm";
 import { ArticleDetail } from "./components/ArticleDetail";
 import { Settings } from "./components/Settings";
 import { MonthlyChart } from "./components/MonthlyChart";
+import { MonthlyReport } from "./components/MonthlyReport";
+import { VintedImport } from "./components/VintedImport";
+import { isMonth, monthLabel, moveMonth } from "./lib/periods";
 
 type Tab = "home" | "articles" | "stats";
 type View =
@@ -42,16 +46,14 @@ type View =
   | { type: "edit"; id: string; action?: "sell" | "fees" }
   | { type: "settings" }
   | { type: "help" }
+  | { type: "vinted-import" }
   | null;
 const navItems = [
   { id: "home", title: "Accueil", icon: Home },
   { id: "articles", title: "Mes articles", icon: Shirt },
   { id: "stats", title: "Statistiques", icon: BarChart3 },
 ] as const;
-const monthName = (month: string) =>
-  new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(
-    new Date(`${month}-15T12:00:00`),
-  );
+const monthName = monthLabel;
 const activityLabels: Record<Activity["type"], string> = {
   created: "Article ajouté",
   updated: "Article modifié",
@@ -129,6 +131,7 @@ export default function App() {
     ...new Set([
       new Date().getFullYear(),
       year,
+      ...articles.map((a) => Number(a.purchaseDate.slice(0, 4))),
       ...articles
         .filter((a) => a.saleDate)
         .map((a) => Number(a.saleDate!.slice(0, 4))),
@@ -139,11 +142,8 @@ export default function App() {
     setToast(message);
   }
   function shiftMonth(offset: number) {
-    const d = new Date(`${month}-15T12:00:00`);
-    d.setMonth(d.getMonth() + offset);
-    const y = d.getFullYear();
-    if (y >= 1900 && y <= 9999)
-      setMonth(`${y}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    const next = moveMonth(month, offset);
+    if (next) setMonth(next);
   }
   const openStock = () => {
     setFilter("stock");
@@ -319,7 +319,7 @@ export default function App() {
                           max="9999-12"
                           value={month}
                           onChange={(e) => {
-                            if (/^\d{4}-\d{2}$/.test(e.target.value))
+                            if (isMonth(e.target.value))
                               setMonth(e.target.value);
                           }}
                         />
@@ -360,14 +360,19 @@ export default function App() {
                       amount={String(summary.stockCount)}
                       caption={
                         <>
-                          article{summary.stockCount > 1 ? "s" : ""} en attente
-                          d’une seconde vie
+                          article{summary.stockCount > 1 ? "s" : ""}{" "}
+                          actuellement en stock
                         </>
                       }
                       icon={Package}
                       onClick={openStock}
                     />
                   </div>
+                  <MonthlyReport
+                    articles={articles}
+                    rate={settings.rateBps}
+                    month={month}
+                  />
                   <div className="dashboard-middle">
                     <section className="panel chart-panel">
                       <div className="panel-heading">
@@ -381,6 +386,8 @@ export default function App() {
                         articles={articles}
                         rate={settings.rateBps}
                         year={Number(month.slice(0, 4))}
+                        activeMonth={month}
+                        onMonthSelect={setMonth}
                       />
                     </section>
                     <section className="panel stock-panel">
@@ -537,6 +544,15 @@ export default function App() {
                         onChange={(e) => setSearch(e.target.value)}
                       />
                     </label>
+                  </div>
+                  <div className="articles-import-action">
+                    <button
+                      className="button secondary"
+                      onClick={() => setView({ type: "vinted-import" })}
+                    >
+                      <Upload size={16} /> Importer depuis Vinted
+                    </button>
+                    <span>Export officiel uniquement · en préparation</span>
                   </div>
                   <section className="panel articles-panel">
                     <div className="panel-heading">
@@ -702,7 +718,17 @@ export default function App() {
                             (row) => (
                               <tr key={row.month}>
                                 <th scope="row">
-                                  {monthName(row.month).split(" ")[0]}
+                                  <button
+                                    className="month-row-link"
+                                    aria-label={`Afficher le bilan de ${monthName(row.month)}`}
+                                    onClick={() => {
+                                      setMonth(row.month);
+                                      navigate("home");
+                                    }}
+                                  >
+                                    {monthName(row.month).split(" ")[0]}
+                                    <ChevronRight size={12} />
+                                  </button>
                                 </th>
                                 <td>{row.soldCount}</td>
                                 <td>{money(row.revenue)}</td>
@@ -804,6 +830,12 @@ export default function App() {
           settings={settings}
           articles={articles}
           onClose={() => setView(null)}
+        />
+      )}
+      {view?.type === "vinted-import" && (
+        <VintedImport
+          onClose={() => setView(null)}
+          onManual={() => setView({ type: "add" })}
         />
       )}
       {view?.type === "help" && (
