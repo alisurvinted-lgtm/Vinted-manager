@@ -75,7 +75,10 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         runtimeCaching: [],
         globIgnores: ["**/*.json", "**/*.csv", "**/*.vmbackup", "**/*.map"],
-        navigateFallbackDenylist: [/\.(?:json|csv|vmbackup|zip)$/i],
+        navigateFallbackDenylist: [
+          /\.(?:json|csv|vmbackup|zip)$/i,
+          /\/gmail-prototype(?:\/|$)/,
+        ],
       },
     }),
   ],

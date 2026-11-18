@@ -11,10 +11,15 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "check": "npm run verify:source && npm run test && npm run build && npm run test:e2e",
-    "format": "prettier --write src tests e2e scripts .github *.ts *.json *.md index.html",
-    "format:check": "prettier --check src tests e2e scripts .github *.ts *.json *.md index.html",
+    "format": "prettier --write src tests e2e scripts .github prototypes/gmail-oauth *.ts *.json *.md index.html",
+    "format:check": "prettier --check src tests e2e scripts .github prototypes/gmail-oauth *.ts *.json *.md index.html",
     "verify:dist": "node scripts/verify-dist.mjs",
-    "verify:source": "node scripts/verify-source.mjs"
+    "verify:source": "node scripts/verify-source.mjs",
+    "gmail:build": "npm run gmail:verify && tsc -p prototypes/gmail-oauth/tsconfig.json && vite build --config prototypes/gmail-oauth/vite.config.ts",
+    "gmail:preview": "vite preview --config prototypes/gmail-oauth/vite.config.ts",
+    "gmail:test": "vitest run tests/gmail-prototype",
+    "gmail:test:browser": "playwright test --config prototypes/gmail-oauth/playwright.config.ts",
+    "gmail:verify": "node scripts/verify-gmail-prototype.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.0",

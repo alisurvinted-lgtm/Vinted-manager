@@ -23,3 +23,6 @@ ventes-vinted-*.csv
 *.sqlite-*
 *.zip
 *.vmbackup
+
+# Prototype OAuth : build séparé, jamais publié par Pages.
+.prototype-build/

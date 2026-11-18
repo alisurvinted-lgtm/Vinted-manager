@@ -199,3 +199,7 @@ vite.config.ts                 Build et PWA
 ```
 
 React, TypeScript, Vite, Tailwind CSS, Lucide React, Dexie et vite-plugin-pwa. Le graphique SVG évite une dépendance supplémentaire. Les seuls accès réseau de l’application chargent ou mettent à jour ses propres fichiers statiques.
+
+## Prototype Gmail désactivé
+
+La phase de connexion personnelle est préparée dans [prototypes/gmail-oauth/README.md](./prototypes/gmail-oauth/README.md). Elle ne fait pas partie du site publié, ne lit aucun e-mail et ne modifie aucune donnée comptable. La connexion réelle attend la création et la validation du client OAuth par le propriétaire.

@@ -58,6 +58,17 @@ for (const file of files.filter((f) =>
   /\.(?:js|html|css|webmanifest)$/.test(f),
 )) {
   const content = await readFile(`dist/${file}`, "utf8");
+  // Seule l’exclusion de navigation du worker peut nommer le prototype.
+  const isolatedContent =
+    file === "sw.js"
+      ? content.replaceAll(String.raw`/\/gmail-prototype(?:\/|$)/`, "")
+      : content;
+  assert(
+    !isolatedContent.includes("gmail-prototype") &&
+      !content.includes("accounts.google.com/gsi") &&
+      !content.includes("gmail.googleapis.com"),
+    `Prototype OAuth interdit dans le build Pages : ${file}`,
+  );
   assert(
     !content.includes("__VM_PRIVATE_TEST__") &&
       !content.includes("__VM_SECRET_TEST__"),

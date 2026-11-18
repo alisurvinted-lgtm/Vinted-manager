@@ -22,6 +22,17 @@ export const sourceFiles = [
   "DEPLOIEMENT_GITHUB_PAGES.md",
   "SECURITE.md",
   "VINTED_IMPORT.md",
+  "prototypes/gmail-oauth/README.md",
+  "prototypes/gmail-oauth/config.json",
+  "prototypes/gmail-oauth/index.html",
+  "prototypes/gmail-oauth/main.tsx",
+  "prototypes/gmail-oauth/session.ts",
+  "prototypes/gmail-oauth/google.ts",
+  "prototypes/gmail-oauth/style.css",
+  "prototypes/gmail-oauth/vite.config.ts",
+  "prototypes/gmail-oauth/tsconfig.json",
+  "prototypes/gmail-oauth/playwright.config.ts",
+  "prototypes/gmail-oauth/browser.spec.ts",
 ];
 export async function publicationFiles() {
   const result = [...sourceFiles];
