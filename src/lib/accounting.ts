@@ -20,12 +20,16 @@ export function parseRate(value: string): number {
     throw new Error("Le taux doit être compris entre 0 et 100 %.");
   return bps;
 }
-export const editMoney = (cents: number) => (cents / 100).toFixed(2);
+export const editMoney = (cents: number | null) =>
+  cents === null ? "" : (cents / 100).toFixed(2);
 const formatter = new Intl.NumberFormat("fr-FR", {
   style: "currency",
   currency: "EUR",
 });
-export const money = (cents: number) => formatter.format(cents / 100);
+export const money = (cents: number | null) =>
+  cents === null ? "À compléter" : formatter.format(cents / 100);
+export const amountClass = (value: number | null) =>
+  value === null ? "" : value < 0 ? "negative" : "positive";
 export const rateLabel = (bps: number) =>
   new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(
     bps / 100,
@@ -36,10 +40,12 @@ export const contribution = (saleCents: number, rateBps: number) =>
   Math.round((saleCents * rateBps) / 10000);
 export const profit = (article: Article, rateBps: number) =>
   article.status === "sold"
-    ? article.salePrice! -
-      article.purchasePrice -
-      feeTotal(article) -
-      contribution(article.salePrice!, rateBps)
+    ? article.purchasePrice === null
+      ? null
+      : article.salePrice! -
+        article.purchasePrice -
+        feeTotal(article) -
+        contribution(article.salePrice!, rateBps)
     : 0;
 export function totals(articles: Article[], rateBps: number, period?: string) {
   const sold = articles.filter(
@@ -47,9 +53,12 @@ export function totals(articles: Article[], rateBps: number, period?: string) {
   );
   const stock = articles.filter((a) => a.status === "stock");
   const bought = articles.filter(
-    (a) => !period || a.purchaseDate.startsWith(period),
+    (a) => !period || a.purchaseDate?.startsWith(period),
   );
-  const acquisitionCost = sold.reduce((sum, a) => sum + a.purchasePrice, 0);
+  const acquisitionCost = sold.reduce(
+    (sum, a) => sum + (a.purchasePrice ?? 0),
+    0,
+  );
   const boostFees = sold.reduce(
     (sum, a) =>
       sum +
@@ -67,15 +76,25 @@ export function totals(articles: Article[], rateBps: number, period?: string) {
     0,
   );
   const revenue = sold.reduce((sum, a) => sum + a.salePrice!, 0);
-  const net = sold.reduce((sum, a) => sum + profit(a, rateBps), 0);
+  const incompleteProfitCount = sold.filter(
+    (a) => a.purchasePrice === null,
+  ).length;
+  const net = incompleteProfitCount
+    ? null
+    : sold.reduce((sum, a) => sum + (profit(a, rateBps) ?? 0), 0);
   return {
     revenue,
     net,
-    acquisitionCost,
+    acquisitionCost: incompleteProfitCount ? null : acquisitionCost,
+    incompleteProfitCount,
+    unknownPurchaseDates: articles.filter((a) => a.purchaseDate === null)
+      .length,
     boostFees,
     cleaningFees,
     salesFees: boostFees + cleaningFees,
-    purchaseOutflow: bought.reduce((sum, a) => sum + a.purchasePrice, 0),
+    purchaseOutflow: bought.some((a) => a.purchasePrice === null)
+      ? null
+      : bought.reduce((sum, a) => sum + (a.purchasePrice ?? 0), 0),
     purchasedCount: bought.length,
     contributions: sold.reduce(
       (sum, a) => sum + contribution(a.salePrice!, rateBps),
@@ -83,12 +102,12 @@ export function totals(articles: Article[], rateBps: number, period?: string) {
     ),
     soldCount: sold.length,
     stockCount: stock.length,
-    stockInvestment: stock.reduce(
-      (sum, a) => sum + a.purchasePrice + feeTotal(a),
-      0,
-    ),
+    stockInvestment: stock.some((a) => a.purchasePrice === null)
+      ? null
+      : stock.reduce((sum, a) => sum + (a.purchasePrice ?? 0) + feeTotal(a), 0),
     averageSale: sold.length ? Math.round(revenue / sold.length) : 0,
-    averageProfit: sold.length ? Math.round(net / sold.length) : 0,
+    averageProfit:
+      net === null ? null : sold.length ? Math.round(net / sold.length) : 0,
   };
 }
 export function monthlyTotals(

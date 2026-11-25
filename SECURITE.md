@@ -4,7 +4,7 @@ Ce document décrit des protections vérifiables et leurs limites. Il ne garanti
 
 ## Où vont les données ?
 
-Les articles, montants, frais, ventes et opérations restent dans IndexedDB, dans le navigateur de l’appareil. Le nom et les versions de la base sont inchangés : cette mise à jour ne supprime aucune base existante. Il n’existe aucun serveur de données, compte applicatif, tracker, service analytique, publicité, télémétrie ou API Vinted.
+Les articles, montants, frais, ventes et opérations restent dans IndexedDB, dans le navigateur de l’appareil. Le nom de la base est conservé ; le schéma v3 ajoute le suivi des imports sans supprimer ou réécrire les données existantes. Il n’existe aucun serveur de données, compte applicatif, tracker, service analytique, publicité, télémétrie ou API Vinted.
 
 Le code de l’application n’utilise aucune API d’envoi réseau. Une CSP du document de production impose `connect-src 'none'` pour bloquer notamment fetch, XHR, WebSocket et Beacon depuis la page. Le service worker charge les ressources statiques de l’application et ses mises à jour ; aucun enregistrement comptable n’est ajouté à son cache. Les seuls téléchargements déclenchés par l’utilisateur sont des fichiers locaux via une URL Blob.
 
@@ -89,7 +89,8 @@ La CSP est insérée tôt dans le HTML de production :
 
 ```text
 default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline';
-img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self';
+img-src 'self' data:; font-src 'self'; connect-src 'none';
+frame-src https://alisurvinted-lgtm.github.io/Vinted-manager/gmail-prototype/; worker-src 'self';
 manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'
 ```
 
@@ -124,10 +125,18 @@ Les tests utilisent exclusivement des données synthétiques et des bases/profil
 
 L’installation physique sur votre iPhone et les politiques propres à votre appareil ne sont pas vérifiables depuis cet environnement. Les résultats d’exécution et l’état du déploiement figurent dans [VALIDATION.md](./VALIDATION.md).
 
-## Page de test personnel Gmail (phases 1 et 2)
+## Historique du test personnel Gmail (phases 1 et 2)
 
 Le prototype possède une page et une CSP propres, décrites dans [son rapport](./prototypes/gmail-oauth/README.md). Le 25 novembre 2026, le propriétaire a fourni son identifiant client public et confirmé le mode personnel et le scope de lecture seule. Aucun secret client n’est utilisé. Le code comptable et sa CSP réseau fermée ne chargent pas le SDK Google.
 
 Le test n’accède à aucune base. La phase 2 autorisée séparément lit des notifications à la demande, dans un aperçu temporaire sans import, écriture ou transmission à un analyseur externe. Les corps personnels, expéditeurs non retenus, objets non reconnus ou résultats d’authentification douteux ne sont pas chargés. La lecture est bornée, les messages sont affichés comme du texte et les pièces jointes ne sont pas exécutées. Les prix et dates inconnus restent inconnus. Les identifiants sont dédupliqués dans la recherche et les références communes signalées, sans rapprochement avec la comptabilité.
 
 Le jeton n’existe que dans une fermeture JavaScript ; les résultats et corrections restent dans React en mémoire. Déconnexion, révocation, expiration et sortie de page annulent les lectures et effacent les références ; les réponses tardives sont ignorées. La méthode officielle de révocation contacte Google en POST ; une erreur n’est jamais présentée comme une réussite. Le SDK Google constitue un nouveau code de confiance sur la même origine, sans isolation cryptographique vis-à-vis d’IndexedDB ; les règles Google ne limitent pas le scope à Vinted. La configuration personnelle est attestée par le propriétaire. Il a confirmé la connexion physique Safari/PWA et la révocation de phase 1 ; les nouvelles lectures n’ont été testées par l’agent qu’avec des messages synthétiques. Les limites complètes figurent dans le rapport du prototype.
+
+## Import Gmail confirmé — phase 3
+
+La phase 3 autorise l’enregistrement des seules transactions validées, pas des e-mails. Le module Google reste séparé et sans stockage. La page comptable ouvre une frame au chemin HTTPS exact du prototype ; `connect-src 'none'` reste inchangé et le SDK est absent du bundle comptable. Le protocole mémoire vérifie origine, fenêtre source, version, nonce et schéma strict. Il ne transporte aucun texte d’e-mail, objet, adresse ou jeton. Les clés de déduplication sont des empreintes SHA-256, pas une anonymisation absolue ou un chiffrement.
+
+Après confirmation, les champs comptables normalisés et leur suivi sont inscrits localement, en transaction. La base active reste non chiffrée et dépend de la protection de l’appareil. Les sauvegardes AES-256-GCM et PBKDF2 à 600 000 itérations sont inchangées ; leur contenu interne v2 comprend les empreintes et les coûts/date inconnus. La migration v3 ajoute seulement une table de suivi. Les données antérieures ne sont pas vidées ou réécrites. Les restaurations historiques restent explicites et préviennent de l’absence de suivi Gmail.
+
+Une frame de même origine ne constitue pas une barrière contre le SDK tiers lui-même : ses scripts restent du code de confiance, techniquement capable d’accéder à l’origine partagée. Les échanges protégés contre les autres fenêtres et la CSP réduisent les erreurs de transfert et les destinations autorisées ; ils ne remplacent ni l’isolation d’origine, ni la sécurité de l’iPhone, ni une revue de chaque mise à jour. Aucun niveau de sécurité absolue n’est revendiqué. Les règles et limites actuelles complètes sont dans [le rapport Gmail](./prototypes/gmail-oauth/README.md).

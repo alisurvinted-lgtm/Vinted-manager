@@ -1,6 +1,30 @@
 # Validation de Vinted Manager
 
-## Livraison du 25 novembre 2026 — aperçu Gmail phase 2
+## Livraison du 25 novembre 2026 — import Gmail confirmé, phase 3
+
+Périmètre autorisé : enregistrer les transactions explicitement vérifiées, avec confirmation finale, détection des doublons et coûts d’achat inconnus signalés. Aucun e-mail réel n’a été consulté par l’agent. Les jetons, messages, objets et adresses ne sont pas persistés ; seuls les champs comptables confirmés et les empreintes de suivi rejoignent la base locale existante.
+
+| Contrôle                              | Résultat exécuté                                                                                                                       |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Tests unitaires                       | **205 réussis**, dix fichiers                                                                                                          |
+| Parcours comptables et import intégré | **28 réussis**, quatorze Chromium et quatorze WebKit iPhone                                                                            |
+| Parcours du module Gmail séparé       | **10 réussis**, cinq Chromium et cinq WebKit iPhone                                                                                    |
+| TypeScript et builds                  | Réussis pour les deux pages, sous les chemins Pages attendus                                                                           |
+| Publication                           | 83 sources sélectionnées, 13 fichiers statiques comptables et quatre de module Gmail ; aucun export ou donnée de test dans les bundles |
+| Audit npm complet                     | **0 signalement**, aucune dépendance ajoutée                                                                                           |
+| Formatage et contrôles de sources     | Réussis                                                                                                                                |
+
+Les nouveaux tests couvrent la migration additive d’une base v2 vers v3 sans modification des anciens articles/frais/réglages, la conservation des anciens schémas et sauvegardes, les centimes et cotisations, un coût/date d’achat inconnu, la distinction achat du mois/coût de vente, les annonces, remboursements et annulations sans effet automatique, les doublons par message/référence, les lots ambigus et la concurrence. Une erreur dans le lot annule toutes les écritures. Le rattachement préserve les frais et coûts existants ; une vente manuelle déjà présente n’est pas comptée une seconde fois.
+
+Le parcours navigateur utilise un fournisseur OAuth et des messages exclusivement synthétiques. Il vérifie l’absence d’écriture avant confirmation, l’annulation du dialogue, l’enregistrement local hors ligne, le CA/cotisations avec bénéfice inconnu, la persistance, le réimport, le complément du prix d’achat et la mise à jour du bénéfice. Les transferts de fenêtre étrangère ou avec un mauvais nonce sont refusés. Un test a été corrigé pour attendre la fin de l’enregistrement avant de recharger ; la suite complète passe ensuite dans les deux moteurs. Les tests existants de chiffrement, mauvaise phrase, altération, restauration, CSP, cache et fermeture complète restent actifs.
+
+Un essai anonyme WebKit séparé a chargé le vrai SDK Google dans la frame intégrée, ouvert la page Google de saisie d’identifiant puis fermé la fenêtre sans compte, consentement ou lecture Gmail. Cela ne prouve pas le retour OAuth complet dans ce nouveau parcours sur iPhone physique. Le propriétaire a confirmé les étapes antérieures de connexion et d’aperçu ; le nouveau parcours reste à essayer par lui.
+
+La page comptable conserve `connect-src 'none'`, sans SDK Google dans son bundle ; sa CSP ajoute uniquement le chemin HTTPS exact de la frame. Le transfert mémoire n’accepte que les champs normalisés connus. Une frame de même origine ne fournit pas d’isolation cryptographique contre le SDK tiers lui-même. La base locale active reste non chiffrée par l’application, les sauvegardes restent AES-256-GCM/PBKDF2 à 600 000 itérations. Le format interne v2 conserve le suivi ; les anciennes sauvegardes v1 complètes restent restaurables après confirmation et avertissement.
+
+Les résultats de déploiement doivent être contrôlés dans le workflow du commit puis sur le site en HTTPS ; ils ne découlent pas des seuls tests locaux. Le compte rendu de livraison indique la publication réellement observée.
+
+## Historique — aperçu Gmail phase 2
 
 Périmètre approuvé : recherche manuelle et aperçu corrigible, uniquement en mémoire. Aucun import comptable, aucune migration ou écriture en base. Les fichiers `src/`, `public/`, le schéma IndexedDB et les modules de sauvegarde/chiffrement sont identiques à la phase 1 publiée. Le JS comptable reste `index-CaOfr5xX.js` et son CSS `index-jVtMB30o.css`.
 

@@ -2,6 +2,7 @@ import { readdir } from "node:fs/promises";
 // Sélection fermée commune à la vérification et à la préparation de la publication.
 export const sourceRoots = [
   "src",
+  "protocols",
   "public",
   "tests",
   "e2e",
@@ -32,6 +33,7 @@ export const sourceFiles = [
   "prototypes/gmail-oauth/mail-content.ts",
   "prototypes/gmail-oauth/preview-model.ts",
   "prototypes/gmail-oauth/preview.ts",
+  "prototypes/gmail-oauth/transfer.ts",
   "prototypes/gmail-oauth/PreviewPanel.tsx",
   "prototypes/gmail-oauth/style.css",
   "prototypes/gmail-oauth/vite.config.ts",

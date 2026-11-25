@@ -39,6 +39,7 @@ for (const name of [
   "preview-model.ts",
   "preview.ts",
   "PreviewPanel.tsx",
+  "transfer.ts",
 ]) {
   const code = await readFile(root + name, "utf8");
   assert(
@@ -58,6 +59,17 @@ for (const name of [
     `Secret, renouvellement ou accès à l’application comptable dans ${name}`,
   );
 }
+const protocol = await readFile("protocols/gmail-transfer.ts", "utf8");
+assert(
+  !/\b(indexedDB|localStorage|sessionStorage|Dexie|caches|serviceWorker|fetch|XMLHttpRequest|WebSocket|sendBeacon)\b|\bconsole\s*\.|dangerouslySetInnerHTML|client_secret|refresh_token/.test(
+    protocol,
+  ),
+  "Le protocole partagé doit rester sans stockage, réseau, secret ou journal.",
+);
+assert(
+  !/lib\/db|lib\/backup|crypto-backup/.test(protocol),
+  "Le protocole partagé ne doit pas importer la base ou les sauvegardes.",
+);
 const app = await readFile("vite.config.ts", "utf8");
 assert(
   app.includes("connect-src 'none'"),

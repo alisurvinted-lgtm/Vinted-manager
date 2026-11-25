@@ -31,8 +31,8 @@ export interface Article {
   name: string;
   genre: (typeof GENRES)[number];
   category: (typeof CATEGORIES)[number];
-  purchaseDate: string;
-  purchasePrice: number;
+  purchaseDate: string | null;
+  purchasePrice: number | null;
   status: "stock" | "sold";
   salePrice: number | null;
   saleDate: string | null;
@@ -49,7 +49,7 @@ export interface Activity {
   name: string;
   type: ActivityType;
   date: string;
-  amount: number;
+  amount: number | null;
 }
 export interface Settings {
   id: "preferences";

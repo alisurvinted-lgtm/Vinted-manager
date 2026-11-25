@@ -6,7 +6,7 @@ import { normalizeBasePath } from "./src/lib/paths";
 
 const base = normalizeBasePath(process.env.PAGES_BASE_PATH);
 const csp =
-  "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'";
+  "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-src https://alisurvinted-lgtm.github.io/Vinted-manager/gmail-prototype/; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'";
 
 export default defineConfig({
   base,

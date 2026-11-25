@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { ArrowUpRight, Plus, Shirt, X } from "lucide-react";
 import type { Article } from "../lib/model";
-import { money, profit } from "../lib/accounting";
+import { money, profit, amountClass } from "../lib/accounting";
 
 export function Modal({
   title,
@@ -165,15 +165,13 @@ export function ArticleRow({
         </strong>
         <span
           className={
-            article.status === "sold"
-              ? profit(article, rate) < 0
-                ? "negative"
-                : "positive"
-              : ""
+            article.status === "sold" ? amountClass(profit(article, rate)) : ""
           }
         >
           {article.status === "sold"
-            ? `${money(profit(article, rate))} de bénéfice`
+            ? article.purchasePrice === null
+              ? "Bénéfice à compléter"
+              : `${money(profit(article, rate))} de bénéfice`
             : "Achat TTC"}
         </span>
       </span>

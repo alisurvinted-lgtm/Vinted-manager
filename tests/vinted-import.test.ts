@@ -102,6 +102,6 @@ describe("Import Vinted en attente d’un format vérifié", () => {
     expect(after.settings).toEqual(before.settings);
     expect(after.activities).toEqual(before.activities);
     expect(after.articles).toEqual([article]);
-    expect(database.verno).toBe(2);
+    expect(database.verno).toBe(3);
   });
 });

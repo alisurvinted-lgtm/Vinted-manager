@@ -1,4 +1,5 @@
 import Dexie, { type Table } from "dexie";
+import type { ImportRecord } from "../../protocols/gmail-transfer";
 import {
   defaultSettings,
   type Activity,
@@ -12,6 +13,7 @@ export class ManagerDB extends Dexie {
   articles!: Table<Article, string>;
   settings!: Table<Settings, string>;
   activities!: Table<Activity, string>;
+  imports!: Table<ImportRecord, string>;
   constructor(name = "vinted-manager") {
     super(name);
     this.version(1).stores({
@@ -22,6 +24,13 @@ export class ManagerDB extends Dexie {
       articles: "id, status, saleDate, updatedAt",
       settings: "id",
       activities: "id, date",
+    });
+    // Migration additive : aucune table existante n’est vidée ou réécrite.
+    this.version(3).stores({
+      articles: "id, status, saleDate, updatedAt",
+      settings: "id",
+      activities: "id, date",
+      imports: "id, &eventKey, articleId, kind, date",
     });
   }
 }

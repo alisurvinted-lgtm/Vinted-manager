@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-test("le test Gmail est absent du build comptable et n’emprunte pas son repli hors ligne", async ({
+test("la connexion Gmail reste séparée et n’emprunte pas le repli hors ligne comptable", async ({
   page,
   context,
   baseURL,

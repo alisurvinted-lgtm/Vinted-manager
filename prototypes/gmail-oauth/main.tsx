@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import config from "./config.json";
 import { createProbe, isApproved, messages, type ProbeState } from "./session";
@@ -6,8 +6,13 @@ import { checkAccess, loadGoogle } from "./google";
 import { readPreview } from "./preview";
 import { PreviewPanel } from "./PreviewPanel";
 import { currentMailMonth, type PreviewBatch } from "./preview-model";
+import { prepareSelection } from "./transfer";
 import "./style.css";
 function Prototype() {
+  const [hostNonce, setHostNonce] = useState("");
+  const [transferring, setTransferring] = useState(false);
+  const [transferError, setTransferError] = useState("");
+  const previewRef = useRef<PreviewBatch | null>(null);
   const [preview, setPreview] = useState<PreviewBatch | null>(null);
   const [month, setMonth] = useState(currentMailMonth());
   const [accepted, setAccepted] = useState(false);
@@ -34,6 +39,61 @@ function Prototype() {
       },
     }),
   );
+  previewRef.current = preview;
+  useEffect(() => {
+    function receive(event: MessageEvent) {
+      if (
+        window.parent === window ||
+        event.source !== window.parent ||
+        event.origin !== config.expectedOrigin
+      )
+        return;
+      const d = event.data;
+      if (
+        d?.type === "vm:gmail-session" &&
+        d.version === 1 &&
+        typeof d.nonce === "string" &&
+        /^[a-f0-9-]{36}$/.test(d.nonce) &&
+        Object.keys(d).sort().join(",") === "nonce,type,version"
+      )
+        setHostNonce(d.nonce);
+    }
+    window.addEventListener("message", receive);
+    if (window.parent !== window)
+      window.parent.postMessage(
+        { type: "vm:gmail-hello", version: 1 },
+        config.expectedOrigin,
+      );
+    return () => window.removeEventListener("message", receive);
+  }, []);
+  useEffect(() => {
+    if (!preview && hostNonce)
+      window.parent.postMessage(
+        { type: "vm:gmail-clear", version: 1, nonce: hostNonce },
+        config.expectedOrigin,
+      );
+    setTransferError("");
+  }, [preview, hostNonce]);
+  async function transfer() {
+    const snapshot = previewRef.current;
+    if (!snapshot || !hostNonce || transferring) return;
+    setTransferring(true);
+    setTransferError("");
+    try {
+      const items = await prepareSelection(snapshot.rows);
+      if (previewRef.current !== snapshot) return;
+      window.parent.postMessage(
+        { type: "vm:gmail-selection", version: 1, nonce: hostNonce, items },
+        config.expectedOrigin,
+      );
+    } catch (e) {
+      setTransferError(
+        e instanceof Error ? e.message : "Vérifiez votre sélection.",
+      );
+    } finally {
+      setTransferring(false);
+    }
+  }
   const current = state ?? probe.snapshot();
   const allowed =
     isApproved(config) &&
@@ -63,8 +123,9 @@ function Prototype() {
       <p className="eyebrow">VINTED MANAGER · APERÇU PERSONNEL</p>
       <h1>Tester la connexion Gmail</h1>
       <p>
-        Phase 2 : consultez vos notifications Vinted et préparez un aperçu à
-        vérifier. Rien n’est enregistré et votre comptabilité reste inchangée.
+        Phase 3 : vérifiez vos notifications Vinted, puis confirmez les
+        transactions dans l’application comptable. Aucun e-mail ni jeton n’est
+        enregistré.
       </p>
       <p className="mode">
         Mode d’ouverture : {standalone ? "application installée" : "navigateur"}
@@ -81,8 +142,9 @@ function Prototype() {
         />
         <span>
           J’accepte l’accès Google en lecture seule à ma boîte et la lecture
-          locale de mes notifications Vinted, uniquement à ma demande. Rien
-          n’est conservé après fermeture.
+          locale de mes notifications Vinted, uniquement à ma demande. Seules
+          les transactions que je confirme seront enregistrées, sans les e-mails
+          ni le jeton.
         </span>
       </label>
       <div className="actions">
@@ -165,7 +227,9 @@ function Prototype() {
       {preview && (
         <PreviewPanel
           batch={preview}
-          busy={current.busy}
+          busy={current.busy || transferring}
+          canTransfer={!!hostNonce}
+          onTransfer={() => void transfer()}
           onMore={() => void probe.preview(preview.month, true)}
           onClear={() => probe.forgetPreview()}
           onChange={(row) =>
@@ -182,6 +246,7 @@ function Prototype() {
           }
         />
       )}
+      {transferError && <p role="alert">{transferError}</p>}
       <p>
         La déconnexion efface l’accès temporaire de ce test. La révocation
         retire aussi l’autorisation chez Google ; elle doit être confirmée par

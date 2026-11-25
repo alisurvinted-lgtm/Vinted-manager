@@ -7,7 +7,9 @@ const secret =
 for (const file of files) {
   assert(
     sourceFiles.includes(file) ||
-      /^(src|tests|e2e|scripts)\/[\w./-]+\.(ts|tsx|mjs|css)$/.test(file) ||
+      /^(src|protocols|tests|e2e|scripts)\/[\w./-]+\.(ts|tsx|mjs|css)$/.test(
+        file,
+      ) ||
       /^public\/(favicon\.svg|_headers|icons\/(icon-192|icon-512|maskable-512|apple-touch-icon)\.png)$/.test(
         file,
       ) ||
@@ -20,7 +22,7 @@ for (const file of files) {
     !secret.test(text),
     `Signature de secret détectée dans ${file}. Le contenu n’est pas affiché.`,
   );
-  if (file.startsWith("src/")) {
+  if (file.startsWith("src/") || file.startsWith("protocols/")) {
     assert(
       !/\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/.test(
         text,

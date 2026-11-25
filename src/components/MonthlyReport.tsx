@@ -1,5 +1,10 @@
 import { ArrowDown, ArrowUp, Minus, ShoppingBag } from "lucide-react";
-import { changePercent, money, monthlyReport } from "../lib/accounting";
+import {
+  amountClass,
+  changePercent,
+  money,
+  monthlyReport,
+} from "../lib/accounting";
 import { monthLabel } from "../lib/periods";
 import type { Article } from "../lib/model";
 
@@ -53,7 +58,7 @@ export function MonthlyReport({
             Ventes − achats des articles vendus − frais − cotisations
           </small>
         </span>
-        <strong className={current.net < 0 ? "negative" : "positive"}>
+        <strong className={amountClass(current.net)}>
           {money(current.net)}
         </strong>
       </div>
@@ -73,6 +78,14 @@ export function MonthlyReport({
           {money(current.purchaseOutflow)}
         </strong>
       </div>
+      {(current.incompleteProfitCount > 0 ||
+        current.unknownPurchaseDates > 0) && (
+        <p className="info-box">
+          {current.incompleteProfitCount} vente(s) au bénéfice à compléter.{" "}
+          {current.unknownPurchaseDates} date(s) d’achat inconnue(s), exclues
+          des dépenses mensuelles tant qu’elles ne sont pas renseignées.
+        </p>
+      )}
       <p className="monthly-method">
         Les frais sont rattachés aux articles vendus, sans supposer leur date de
         paiement. Le stock et le capital affichés à l’accueil décrivent la
@@ -141,10 +154,19 @@ function Comparison({
   count = false,
 }: {
   title: string;
-  current: number;
-  previous: number;
+  current: number | null;
+  previous: number | null;
   count?: boolean;
 }) {
+  if (current === null || previous === null)
+    return (
+      <div className="comparison-row">
+        <span>{title}</span>
+        <strong>{money(current)}</strong>
+        <span>{money(previous)}</span>
+        <span>À compléter</span>
+      </div>
+    );
   const delta = current - previous;
   const percent = changePercent(current, previous);
   const format = (value: number) => (count ? String(value) : money(value));

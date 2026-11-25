@@ -1,3 +1,7 @@
+import {
+  validateImportRecord,
+  type ImportRecord,
+} from "../../protocols/gmail-transfer";
 import { db, type ManagerDB } from "./db";
 import {
   defaultSettings,
@@ -9,11 +13,12 @@ import { validateActivity, validateArticle } from "./validation";
 import { contribution, editMoney, feeTotal, profit } from "./accounting";
 export interface Backup {
   format: "vinted-manager";
-  version: 1;
+  version: 1 | 2;
   exportedAt: string;
   articles: Article[];
   activities: Activity[];
   settings: Settings;
+  imports?: ImportRecord[];
 }
 export async function createBackup(database = db): Promise<Backup> {
   return database.transaction(
@@ -21,12 +26,14 @@ export async function createBackup(database = db): Promise<Backup> {
     database.articles,
     database.settings,
     database.activities,
+    database.imports,
     async () => ({
       format: "vinted-manager",
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       articles: await database.articles.toArray(),
       activities: await database.activities.toArray(),
+      imports: await database.imports.toArray(),
       settings: (await database.settings.get("preferences")) ?? {
         ...defaultSettings,
       },
@@ -48,7 +55,7 @@ export function parseBackup(json: string): Backup {
   if (
     !data ||
     data.format !== "vinted-manager" ||
-    data.version !== 1 ||
+    ![1, 2].includes(data.version) ||
     !Array.isArray(data.articles) ||
     !Array.isArray(data.activities) ||
     data.articles.length > 100000 ||
@@ -67,6 +74,30 @@ export function parseBackup(json: string): Backup {
     throw new Error(
       "Ce fichier n’est pas une sauvegarde Vinted Manager compatible.",
     );
+  if (
+    data.version === 2 &&
+    (!Array.isArray(data.imports) || data.imports.length > 200000)
+  )
+    throw new Error("Le suivi des imports est invalide.");
+  const imports: ImportRecord[] = data.version === 2 ? data.imports : [];
+  imports.forEach(validateImportRecord);
+  if (
+    new Set(imports.map((i) => i.id)).size !== imports.length ||
+    new Set(imports.map((i) => i.eventKey)).size !== imports.length
+  )
+    throw new Error("Le suivi des imports contient des doublons.");
+  if (
+    data.version === 1 &&
+    (data.articles.some(
+      (a: Article) => a.purchasePrice === null || a.purchaseDate === null,
+    ) ||
+      data.activities.some((a: Activity) => a.amount === null) ||
+      (data.imports !== undefined &&
+        (!Array.isArray(data.imports) || data.imports.length > 0)))
+  )
+    throw new Error(
+      "Les données ne correspondent pas au format historique de sauvegarde.",
+    );
   data.articles.forEach(validateArticle);
   data.activities.forEach(validateActivity);
   if (
@@ -79,7 +110,8 @@ export function parseBackup(json: string): Backup {
   // Reconstruire uniquement les champs connus, pour ne pas importer de propriétés arbitraires.
   return {
     format: "vinted-manager",
-    version: 1,
+    version: data.version,
+    imports: imports.map((i) => ({ ...i })),
     exportedAt: data.exportedAt,
     settings: {
       id: "preferences",
@@ -119,13 +151,16 @@ export async function restoreBackup(backup: Backup, database: ManagerDB = db) {
     database.articles,
     database.settings,
     database.activities,
+    database.imports,
     async () => {
       await database.articles.clear();
       await database.settings.clear();
       await database.activities.clear();
+      await database.imports.clear();
       await database.articles.bulkAdd(valid.articles);
       await database.settings.put(valid.settings);
       await database.activities.bulkAdd(valid.activities);
+      await database.imports.bulkAdd(valid.imports ?? []);
     },
   );
 }
@@ -153,14 +188,16 @@ export function salesCSV(articles: Article[], rateBps: number): string {
         a.name,
         a.genre,
         a.category,
-        a.purchaseDate,
+        a.purchaseDate ?? "À compléter",
         editMoney(a.purchasePrice),
         a.saleDate!,
         editMoney(a.salePrice!),
         editMoney(feeTotal(a)),
         editMoney(rateBps),
         editMoney(contribution(a.salePrice!, rateBps)),
-        editMoney(profit(a, rateBps)),
+        a.purchasePrice === null
+          ? "Bénéfice à compléter"
+          : editMoney(profit(a, rateBps)),
       ]),
   ];
   return (

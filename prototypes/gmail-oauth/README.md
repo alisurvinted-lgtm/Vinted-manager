@@ -1,4 +1,45 @@
-# Test personnel Gmail — aperçu temporaire (phase 2)
+# Gmail personnel — import confirmé (phase 3)
+
+Phase 3 autorisée par le propriétaire le 25 novembre 2026. Elle ajoute l’enregistrement des transactions qu’il vérifie, avec une confirmation finale distincte. La connexion, les recherches et l’analyse restent locales ; aucun e-mail réel n’a été consulté par l’agent.
+
+## Utilisation sur iPhone
+
+Ouvrir **l’application Vinted Manager habituelle**, puis **Importer depuis Gmail** à l’accueil. Après la connexion Google, choisir le mois, rechercher et compléter les lignes utiles. Cocher les lignes vérifiées ; cette case confirme aussi que les champs de frais laissés vides signifient aucun frais supplémentaire. Toucher **Vérifier l’enregistrement des lignes cochées**. Choisir de créer un article, de vendre un article déjà en stock ou de relier une transaction déjà enregistrée, puis **Confirmer et enregistrer**. Un dialogue final permet encore d’annuler.
+
+Le chemin `/gmail-prototype/` et l’ancienne icône « Test Gmail » servent toujours au test de lecture. Pour enregistrer dans la bonne base, passer par l’application principale installée : Safari et les PWA peuvent disposer de contextes de stockage distincts. Ne jamais effacer les données Safari pour actualiser l’application.
+
+## Frontière entre Gmail et comptabilité
+
+Le module Google est chargé dans une frame de même origine, seulement après l’ouverture volontaire de l’import. Le SDK ne se charge qu’après le consentement et « Préparer le test ». La CSP principale conserve `connect-src 'none'` et autorise uniquement la frame au chemin HTTPS exact du prototype ; aucun endpoint Google ou script tiers n’est ajouté à son bundle.
+
+Le transfert utilise `postMessage` vers l’origine exacte, avec contrôle de `event.origin`, `event.source`, version et nonce aléatoire propre à l’ouverture. Aucun jeton, objet, texte, adresse ou identifiant Gmail en clair ne traverse ce protocole. Seuls les champs comptables saisis/vérifiés et les empreintes SHA-256 du message et, si présente, de sa référence/type, sont acceptés. Les champs étrangers sont refusés. Le module Gmail reste sans accès à une base, au stockage Web ou aux sauvegardes. La page comptable revalide chaque sélection et exige une confirmation avant toute écriture.
+
+Cette séparation de code et de CSP **n’est pas une isolation cryptographique** : le SDK Google est du code de confiance sur la même origine, susceptible d’accéder techniquement au DOM ou à IndexedDB. Une mise à jour compromise, un appareil compromis ou une extension malveillante reste un risque. Le protocole ne protège pas contre un code malveillant déjà autorisé sur cette origine. Google reçoit les requêtes normales de recherche/lecture et leurs métadonnées ; aucune comptabilité ne lui est envoyée par le code applicatif.
+
+## Données enregistrées et calculs
+
+- Seuls les champs normalisés confirmés sont persistés dans IndexedDB, jamais les messages ou jetons. **La base active reste non chiffrée par l’application**, comme auparavant ; sa confidentialité dépend de l’iPhone/Safari. Les sauvegardes restent chiffrées par AES-256-GCM, PBKDF2-SHA-256 à 600 000 itérations.
+- Migration additive du schéma v2 vers v3 : ajout de `imports` et d’un index unique de suivi, sans réécriture ni suppression d’article, frais, réglage ou opération existants. Les articles historiques complets restent identiques.
+- Le coût et la date d’achat absents restent `null`. Une vente finalisée exige un prix et une date de vente confirmés ; elle compte dans le CA et les cotisations, mais son bénéfice et les agrégats de bénéfice restent « À compléter » tant que le coût manque. Le graphique ne trace pas un bénéfice inconnu comme zéro. Les achats sans date sont signalés et exclus des dépenses mensuelles jusqu’à saisie de leur date.
+- Un achat confirmé crée du stock sans CA. Le capital reste à compléter si un coût de stock est inconnu. Genre et catégorie par défaut Unisexe / Autre sont annoncés et modifiables ensuite.
+- Une annonce de vente, annulation, remboursement ou transaction incomplète reste dans **Notifications à vérifier**, sans effet automatique sur les ventes ou le stock. « Classer sans effet comptable » n’effectue aucune correction financière. La correction éventuelle d’un article reste explicite dans sa fiche.
+- Les identifiants hachés évitent la répétition du même message ; une référence/type commune permet un contrôle supplémentaire. Sans référence, le rapprochement métier n’est pas garanti. Une ressemblance avec les articles manuels exige un rattachement ou la confirmation d’un article distinct. Les références ambiguës, lots de plusieurs articles et montants divergents sont refusés plutôt que fusionnés. Les lots demandent une vérification/saisie manuelle.
+- Vendre un article existant conserve ses coûts connus, sa classification et ses frais, puis ajoute seulement les frais annoncés comme supplémentaires. Relier une vente déjà enregistrée ne modifie aucun montant ; prix et date doivent correspondre. Une modification concurrente de la fiche bloque l’opération. Le lot est transactionnel : une erreur annule toutes ses écritures.
+- Un enregistrement finalisé est corrigé dans la fiche de l’article, pas en réimportant son e-mail. Une notification non financière déjà suivie n’est pas automatiquement convertie en article : terminer la vérification et saisir/corriger explicitement la fiche si nécessaire.
+
+Les sauvegardes comptables exportées utilisent le **format interne v2**, incluant le suivi des imports et les coûts inconnus, à l’intérieur de l’enveloppe chiffrée v1 inchangée. Les anciennes sauvegardes v1 complètes restent restaurables. Elles ne contiennent pas de suivi Gmail : un avertissement le précise avant remplacement pour inviter à vérifier les doublons ultérieurs. Aucune sauvegarde n’est restaurée automatiquement.
+
+## Contrôles et limites
+
+Tests unitaires de migration v1/v2, conservation des articles, centimes, inconnus, doublons et concurrence, refus de données malformées, lots ambigus et restauration chiffrée avec suivi. Parcours Chromium et WebKit iPhone : lecture simulée, correction, confirmation annulée puis acceptée, écriture locale hors ligne, persistance, réimport sans doublon, complément du coût et refus des messages de transfert étrangers. Les contrôles de cache, réseau, fichiers publiables et imports de sauvegarde restent actifs. Résultats détaillés : [VALIDATION.md](../../VALIDATION.md).
+
+Un essai anonyme séparé sous WebKit charge le vrai SDK Google dans la frame et ouvre sa page d’identifiant, puis ferme la fenêtre sans compte, consentement ou lecture Gmail. Il ne prouve pas le retour OAuth complet sur un iPhone physique. La connexion Safari/PWA de phase 1 et l’aperçu de phase 2 ont été rapportés fonctionnels par le propriétaire ; le nouveau parcours intégré doit encore être essayé par lui.
+
+Aucune dépendance, serveur ou prestation payante n’a été ajouté. Le mode personnel OAuth existant et le scope `gmail.readonly` restent inchangés. Les limites de couverture des notifications et les sources officielles ci-dessous restent applicables. Ne pas redéployer une ancienne version de l’application qui ignore le schéma v3 ou les coûts inconnus ; pour retirer la fonction, conserver le schéma et les lecteurs actuels et désactiver son point d’entrée. Aucun retour arrière ne doit effacer la base.
+
+## Historique : périmètre de la phase 2 (remplacé par la phase 3 ci-dessus)
+
+### Rapport de la phase 2
 
 Livraison du 25 novembre 2026 dans le dépôt existant. Le propriétaire a validé la phase 2 : repérer les notifications Vinted et présenter un aperçu corrigible, **sans enregistrement comptable**. La connexion et la révocation de phase 1 ont été confirmées par le propriétaire sur Safari iPhone et depuis l’icône installée. Cela ne démontre pas encore une lecture réelle de notifications avec cette nouvelle version.
 

@@ -29,13 +29,21 @@ import {
 } from "lucide-react";
 import { db } from "./lib/db";
 import { currentMonth, defaultSettings, type Activity } from "./lib/model";
-import { money, monthlyTotals, rateLabel, totals } from "./lib/accounting";
+import {
+  amountClass,
+  money,
+  monthlyTotals,
+  rateLabel,
+  totals,
+} from "./lib/accounting";
 import { AddButton, ArticleRow, EmptyState, Modal } from "./components/ui";
 import { ArticleForm } from "./components/ArticleForm";
 import { ArticleDetail } from "./components/ArticleDetail";
 import { Settings } from "./components/Settings";
 import { MonthlyChart } from "./components/MonthlyChart";
 import { MonthlyReport } from "./components/MonthlyReport";
+import { GmailImport } from "./components/GmailImport";
+import { ImportReview } from "./components/ImportReview";
 import { VintedImport } from "./components/VintedImport";
 import { isMonth, monthLabel, moveMonth } from "./lib/periods";
 
@@ -47,6 +55,7 @@ type View =
   | { type: "settings" }
   | { type: "help" }
   | { type: "vinted-import" }
+  | { type: "gmail-import" }
   | null;
 const navItems = [
   { id: "home", title: "Accueil", icon: Home },
@@ -65,6 +74,7 @@ const activityLabels: Record<Activity["type"], string> = {
 export default function App() {
   const data = useLiveQuery(async () => ({
     articles: await db.articles.toArray(),
+    imports: (await db.imports.toArray()).filter((i) => !i.resolved),
     settings: (await db.settings.get("preferences")) ?? defaultSettings,
     activities: await db.activities
       .orderBy("date")
@@ -73,7 +83,9 @@ export default function App() {
       .toArray(),
   }));
   const [tab, setTab] = useState<Tab>("home");
-  const [view, setView] = useState<View>(null);
+  const [view, setView] = useState<View>(() =>
+    location.hash === "#gmail-import" ? { type: "gmail-import" } : null,
+  );
   const [month, setMonth] = useState(currentMonth());
   const [year, setYear] = useState(new Date().getFullYear());
   const [filter, setFilter] = useState<"all" | "stock" | "sold">("all");
@@ -90,6 +102,8 @@ export default function App() {
     },
   });
   useEffect(() => {
+    if (location.hash === "#gmail-import")
+      history.replaceState(null, "", location.pathname + location.search);
     const update = () => setOnline(navigator.onLine);
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
@@ -131,7 +145,9 @@ export default function App() {
     ...new Set([
       new Date().getFullYear(),
       year,
-      ...articles.map((a) => Number(a.purchaseDate.slice(0, 4))),
+      ...articles
+        .filter((a) => a.purchaseDate)
+        .map((a) => Number(a.purchaseDate!.slice(0, 4))),
       ...articles
         .filter((a) => a.saleDate)
         .map((a) => Number(a.saleDate!.slice(0, 4))),
@@ -346,8 +362,8 @@ export default function App() {
                       amount={money(summary.net)}
                       caption="Après achats, frais et cotisations"
                       icon={ArrowDownLeft}
-                      positive={summary.net >= 0}
-                      negative={summary.net < 0}
+                      positive={summary.net !== null && summary.net >= 0}
+                      negative={summary.net !== null && summary.net < 0}
                     />
                     <Metric
                       title="Cotisations estimées"
@@ -368,6 +384,21 @@ export default function App() {
                       onClick={openStock}
                     />
                   </div>
+                  <div className="gmail-entry">
+                    <button
+                      className="button secondary"
+                      disabled={!online}
+                      onClick={() => setView({ type: "gmail-import" })}
+                    >
+                      Importer depuis Gmail
+                    </button>
+                    <span>
+                      {online
+                        ? "Vérifier puis confirmer, sans import automatique."
+                        : "La connexion Gmail nécessite Internet. Vos articles restent disponibles hors ligne."}
+                    </span>
+                  </div>
+                  <ImportReview records={data.imports} />
                   <MonthlyReport
                     articles={articles}
                     rate={settings.rateBps}
@@ -640,8 +671,8 @@ export default function App() {
                       amount={money(annual.net)}
                       caption="Après achats, frais et cotisations"
                       icon={ArrowDownLeft}
-                      positive={annual.net >= 0}
-                      negative={annual.net < 0}
+                      positive={annual.net !== null && annual.net >= 0}
+                      negative={annual.net !== null && annual.net < 0}
                     />
                     <Metric
                       title="Cotisations estimées"
@@ -735,9 +766,9 @@ export default function App() {
                                 <td>{money(row.contributions)}</td>
                                 <td
                                   className={
-                                    row.net < 0
+                                    row.net !== null && row.net < 0
                                       ? "negative"
-                                      : row.net > 0
+                                      : row.net !== null && row.net > 0
                                         ? "positive"
                                         : ""
                                   }
@@ -754,11 +785,7 @@ export default function App() {
                             <td>{annual.soldCount}</td>
                             <td>{money(annual.revenue)}</td>
                             <td>{money(annual.contributions)}</td>
-                            <td
-                              className={
-                                annual.net < 0 ? "negative" : "positive"
-                              }
-                            >
+                            <td className={amountClass(annual.net)}>
                               {money(annual.net)}
                             </td>
                           </tr>
@@ -830,6 +857,13 @@ export default function App() {
           settings={settings}
           articles={articles}
           onClose={() => setView(null)}
+        />
+      )}
+      {view?.type === "gmail-import" && (
+        <GmailImport
+          articles={articles}
+          onClose={() => setView(null)}
+          onSaved={saved}
         />
       )}
       {view?.type === "vinted-import" && (

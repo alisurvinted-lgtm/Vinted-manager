@@ -15,12 +15,16 @@ export function PreviewPanel({
   onChange,
   onMore,
   onClear,
+  onTransfer,
+  canTransfer,
 }: {
   batch: PreviewBatch;
   busy: boolean;
   onChange: (row: PreviewRow) => void;
   onMore: () => void;
   onClear: () => void;
+  onTransfer: () => void;
+  canTransfer: boolean;
 }) {
   const references = new Map<string, number>();
   for (const row of batch.rows)
@@ -126,7 +130,7 @@ export function PreviewPanel({
                 Article
                 <input
                   aria-label={`Article pour ${row.subject}`}
-                  maxLength={160}
+                  maxLength={120}
                   value={row.draft.article}
                   placeholder="À préciser"
                   onChange={(e) => set({ article: e.target.value })}
@@ -174,6 +178,17 @@ export function PreviewPanel({
                   onChange={(e) => set({ date: e.target.value })}
                 />
               </label>
+              {row.draft.kind === "sale_final" && (
+                <label>
+                  Date d’achat, si connue
+                  <input
+                    type="date"
+                    aria-label={`Date d’achat pour ${row.subject}`}
+                    value={row.draft.purchaseDate}
+                    onChange={(e) => set({ purchaseDate: e.target.value })}
+                  />
+                </label>
+              )}
               {missingCost && (
                 <p className="missing-profit">
                   Bénéfice à compléter : prix d’achat manquant.
@@ -183,9 +198,11 @@ export function PreviewPanel({
                 <input
                   type="checkbox"
                   checked={row.draft.checked}
+                  disabled={!row.authenticated}
                   onChange={(e) => set({ checked: e.target.checked })}
                 />
-                J’ai vérifié cette notification, sans l’enregistrer
+                J’ai vérifié le type, les montants et les dates. Les champs de
+                frais vides signifient aucun frais supplémentaire.
               </label>
             </fieldset>
           </article>
@@ -207,10 +224,26 @@ export function PreviewPanel({
           Effacer uniquement l’aperçu
         </button>
       </div>
+      {canTransfer ? (
+        <button
+          disabled={busy || !batch.rows.some((r) => r.draft.checked)}
+          onClick={onTransfer}
+        >
+          Vérifier l’enregistrement des lignes cochées
+        </button>
+      ) : (
+        <p>
+          Pour enregistrer, ouvrez l’import depuis votre application Vinted
+          Manager habituelle.{" "}
+          <a href="/Vinted-manager/#gmail-import" target="_top">
+            Ouvrir Vinted Manager
+          </a>
+        </p>
+      )}
       <p className="preview-note">
-        Aucun bouton d’import n’est activé. L’aperçu et vos corrections
-        disparaissent à la déconnexion, à la révocation, à l’expiration ou en
-        quittant cette page. Vos statistiques ne sont pas modifiées.
+        Seules les lignes cochées peuvent être transmises à la confirmation
+        comptable. Les e-mails et le jeton ne quittent pas cet aperçu. Les
+        lignes non confirmées disparaissent à la fermeture.
       </p>
     </section>
   );

@@ -1,8 +1,8 @@
-# Vinted Manager V2
+# Vinted Manager
 
 Une application personnelle et gratuite pour suivre ses achats, son stock et ses ventes de vêtements. Interface en français, montants en euros, pensée pour iPhone et utilisable sur ordinateur.
 
-**Sans compte, abonnement, API Vinted, publicité, connexion Gmail ni serveur de données.** Aucune donnée comptable ni phrase secrète n’est envoyée à un service externe par l’application. Les accès aux fichiers statiques restent visibles par l’hébergeur. L’hébergement sert uniquement les fichiers statiques. Aucun article de démonstration n’est inséré.
+**Sans compte applicatif, abonnement, API Vinted, publicité ni serveur de données.** La connexion Gmail personnelle est facultative et déclenchée manuellement pour vérifier puis confirmer des transactions. Aucune donnée comptable ni phrase secrète n’est envoyée à un service externe par l’application. Les accès aux fichiers statiques restent visibles par l’hébergeur. L’hébergement sert uniquement les fichiers statiques. Aucun article de démonstration n’est inséré.
 
 ## Démarrage
 
@@ -64,7 +64,7 @@ Exemple : achat de 15 €, vente de 35 €, boost de 2 €, nettoyage de 1 €, 
 
 ## Stockage et sauvegardes
 
-Les données sont conservées dans **IndexedDB avec Dexie**, dans la base `vinted-manager`. Les écritures d’articles et leur historique sont transactionnelles. Le schéma dispose de versions : v1 (articles, paramètres), v2 (ajout de l’historique). La migration v1 → v2 conserve les articles et paramètres existants. **La version 2.0 de l’application ne change pas le schéma IndexedDB v2, le nom de la base ni le format des sauvegardes.** Le bilan est calculé en lecture seule à partir des articles existants.
+Les données sont conservées dans **IndexedDB avec Dexie**, dans la base `vinted-manager`. Les écritures d’articles, de leur historique et du suivi d’import sont transactionnelles. Le schéma dispose de versions : v1 (articles, paramètres), v2 (historique), v3 (suivi des imports). La migration vers v3 ajoute une table sans modifier les anciens articles, frais ou paramètres. Les nouvelles sauvegardes internes v2 incluent le suivi et les achats inconnus ; les sauvegardes historiques v1 complètes restent compatibles. Le chiffrement de l’enveloppe reste au format v1. Le bilan est calculé en lecture seule à partir des articles enregistrés.
 
 ### Exporter et restaurer
 
@@ -74,7 +74,7 @@ Dans **Paramètres → Sauvegardes & données** :
 - La phrase n’est jamais enregistrée par l’application. Choisissez au moins 16 caractères et de préférence cinq ou six mots aléatoires. Sans la phrase, il n’existe pas de récupération de l’ancien fichier. Si vos données sont encore dans l’application, vous pouvez créer une nouvelle sauvegarde avec une autre phrase.
 - **Importer une sauvegarde** reconnaît le contenu chiffré, demande sa phrase, vérifie son intégrité puis sa structure. Un mauvais secret ou une altération ne modifie aucune donnée. Une confirmation est demandée avant le remplacement transactionnel de la base.
 - Les anciens JSON non chiffrés restent compatibles, avec un avertissement. Leur export et l’export CSV sont regroupés sous **Ancien format et CSV non chiffrés**. Ces fichiers sont lisibles sans phrase secrète et ne doivent jamais être envoyés sur GitHub.
-- Limites : 20 Mo pour le JSON clair, 30 Mo pour le fichier chiffré, 100 000 articles, 200 000 opérations et 100 frais par article.
+- Limites : 20 Mo pour le JSON clair, 30 Mo pour le fichier chiffré, 100 000 articles, 200 000 opérations, 200 000 entrées de suivi et 100 frais par article.
 
 Dans Fichiers, choisissez **Sur mon iPhone** si vous voulez éviter la synchronisation iCloud Drive. Le lieu de téléchargement et les sauvegardes système restent contrôlés par iOS et le navigateur. Conservez votre phrase séparément du fichier.
 
@@ -87,6 +87,8 @@ Les données **ne sont pas sauvegardées dans le cloud** et ne sont pas synchron
 Effacer les données du navigateur, utiliser une navigation privée, changer de navigateur, de profil ou d’adresse du site peut rendre la base indisponible. iOS peut aussi libérer du stockage local en cas de manque d’espace. L’application demande la persistance du stockage si le navigateur le permet ; **cela ne garantit pas la conservation des données**. Une sauvegarde chiffrée régulière reste indispensable.
 
 ## Déploiement gratuit en HTTPS
+
+Pour publier aussi la fonction Gmail sur le dépôt existant, utiliser le workflow fourni : il compile séparément les deux pages puis contrôle et publie `.pages-build/`. Le seul `dist/` correspond à la comptabilité. Le client OAuth personnel est limité à l’origine GitHub Pages configurée.
 
 Aucun serveur Node, aucune clé API et aucune variable d’environnement à configurer dans le navigateur ne sont nécessaires. La base de compilation est `/` par défaut. Pour un sous-dossier, fournissez `PAGES_BASE_PATH=/nom-du-depot/` lors du build. Le workflow GitHub Pages obtient automatiquement le bon chemin auprès de GitHub, y compris pour un site à la racine.
 
@@ -200,6 +202,14 @@ vite.config.ts                 Build et PWA
 
 React, TypeScript, Vite, Tailwind CSS, Lucide React, Dexie et vite-plugin-pwa. Le graphique SVG évite une dépendance supplémentaire. Les seuls accès réseau de l’application chargent ou mettent à jour ses propres fichiers statiques.
 
-## Test personnel de connexion Gmail
+## Historique du prototype Gmail (phase 2)
 
 Le [prototype personnel](./prototypes/gmail-oauth/README.md) dispose d’une page distincte à `/Vinted-manager/gmail-prototype/`, avec son manifeste « Test Gmail ». La connexion et la révocation de phase 1 ont été confirmées par le propriétaire dans Safari et dans la PWA. La **phase 2**, autorisée séparément, propose une recherche manuelle par mois de réception et un aperçu corrigible des notifications `@vinted.fr`. Les messages et corrections restent uniquement en mémoire, sans import comptable, sauvegarde ou modification des statistiques. Les prix et dates inconnus ne sont pas inventés. Le jeton reste dans une fermeture JavaScript et l’aperçu disparaît à la déconnexion, à l’expiration ou en quittant la page. L’accès Google couvre toute la boîte ; il reste réservé au mode personnel et à la lecture seule. Les modèles réels de notifications doivent encore être validés par le propriétaire ; aucun e-mail réel n’a été consulté par l’agent. L’application comptable conserve sa CSP réseau fermée et son fonctionnement hors ligne.
+
+## Import Gmail confirmé — phase 3
+
+Depuis l’accueil de votre application habituelle, **Importer depuis Gmail** ouvre la connexion et l’aperçu séparés. Vérifiez et complétez les lignes, cochez-les, puis confirmez leur enregistrement. Le module ne conserve ni les e-mails ni le jeton Google. Seuls les champs comptables validés et les empreintes de suivi des doublons sont stockés localement. Une vente finalisée exige un prix et une date ; si son achat manque, son CA compte mais le bénéfice reste **À compléter**. Les annonces, annulations et remboursements restent à vérifier, sans correction financière automatique.
+
+Un article ressemblant doit être relié ou confirmé distinct. Un rattachement ne remplace pas silencieusement les montants ; une modification concurrente bloque le lot. Le schéma IndexedDB v3 ajoute le suivi sans supprimer les données. Les sauvegardes internes v2 conservent ce suivi et les inconnus, sous la même enveloppe AES-256-GCM ; les anciennes v1 complètes restent restaurables, avec un avertissement sur l’absence de suivi Gmail. La base locale active reste non chiffrée par l’application.
+
+Utilisez toujours la même application installée : les bases Safari et PWA peuvent être séparées. L’ancienne icône Test Gmail ne donne pas directement accès à la comptabilité de l’autre PWA. Les détails, limites de doublons/notifications/lots et risques liés au SDK de même origine figurent dans [le rapport Gmail](./prototypes/gmail-oauth/README.md).

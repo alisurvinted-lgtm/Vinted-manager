@@ -43,7 +43,7 @@ export function ArticleForm({
     article?.category ?? "Sweat / Hoodie",
   );
   const [purchaseDate, setPurchaseDate] = useState(
-    article?.purchaseDate ?? today(),
+    article ? (article.purchaseDate ?? "") : today(),
   );
   const [purchase, setPurchase] = useState(
     article ? editMoney(article.purchasePrice) : "",
@@ -68,8 +68,8 @@ export function ArticleForm({
       name: name.trim(),
       genre,
       category,
-      purchaseDate,
-      purchasePrice: parseMoney(purchase),
+      purchaseDate: purchaseDate || null,
+      purchasePrice: purchase === "" && article ? null : parseMoney(purchase),
       status: sold ? "sold" : "stock",
       salePrice: sold ? parseMoney(sale) : null,
       saleDate: sold ? saleDate : null,
@@ -159,7 +159,7 @@ export function ArticleForm({
             Date d’achat
             <input
               type="date"
-              required
+              required={!article || article.purchaseDate !== null}
               min="1900-01-01"
               max="9999-12-31"
               value={purchaseDate}
@@ -173,7 +173,7 @@ export function ArticleForm({
               name="purchasePrice"
               value={purchase}
               onChange={setPurchase}
-              required
+              required={!article || article.purchasePrice !== null}
             />
           </label>
         </div>

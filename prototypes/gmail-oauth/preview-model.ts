@@ -29,6 +29,7 @@ export interface PreviewRow {
     boost: string;
     cleaning: string;
     date: string;
+    purchaseDate: string;
     checked: boolean;
   };
 }
@@ -140,6 +141,7 @@ export function proposedRow(
       boost: "",
       cleaning: "",
       date: "",
+      purchaseDate: "",
       checked: false,
     },
   };

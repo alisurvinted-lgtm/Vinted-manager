@@ -19,9 +19,16 @@ export default defineConfig({
       use: { ...devices["iPhone 13"], defaultBrowserType: "webkit" },
     },
   ],
-  webServer: {
-    command: "npm run preview -- --port 4173 --strictPort",
-    url: baseURL,
-    reuseExistingServer: false,
-  },
+  webServer: [
+    {
+      command: "npm run preview -- --port 4173 --strictPort",
+      url: baseURL,
+      reuseExistingServer: false,
+    },
+    {
+      command: "npm run gmail:preview -- --port 4175 --strictPort",
+      url: "http://127.0.0.1:4175/Vinted-manager/gmail-prototype/",
+      reuseExistingServer: false,
+    },
+  ],
 });

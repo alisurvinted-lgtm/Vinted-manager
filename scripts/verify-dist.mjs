@@ -64,7 +64,12 @@ for (const file of files.filter((f) =>
       ? content.replaceAll(String.raw`/\/gmail-prototype(?:\/|$)/`, "")
       : content;
   assert(
-    !isolatedContent.includes("gmail-prototype") &&
+    !isolatedContent
+      .replaceAll(
+        "https://alisurvinted-lgtm.github.io/Vinted-manager/gmail-prototype/",
+        "",
+      )
+      .includes("gmail-prototype") &&
       !content.includes("accounts.google.com/gsi") &&
       !content.includes("gmail.googleapis.com"),
     `Prototype OAuth interdit dans le build Pages : ${file}`,
@@ -81,6 +86,14 @@ for (const file of files.filter((f) =>
     `Signature de secret dans le build : ${file}`,
   );
 }
+assert(
+  html
+    .replaceAll("&#39;", "'")
+    .includes(
+      "frame-src https://alisurvinted-lgtm.github.io/Vinted-manager/gmail-prototype/;",
+    ),
+  "La frame doit rester limitée au chemin Gmail exact.",
+);
 for (const match of html.matchAll(/(?:href|src)="([^"]+)"/g)) {
   const url = new URL(match[1], new URL(base, origin));
   assert.equal(url.origin, origin, "Ressource externe interdite");

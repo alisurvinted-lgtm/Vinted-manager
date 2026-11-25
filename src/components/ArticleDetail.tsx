@@ -7,15 +7,18 @@ import {
   money,
   profit,
   rateLabel,
+  amountClass,
 } from "../lib/accounting";
 import { deleteArticle, saveArticle } from "../lib/db";
 import { ArticleIcon, ErrorMessage, Modal, Status } from "./ui";
-export const dateLabel = (date: string) =>
-  new Intl.DateTimeFormat("fr-FR", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(`${date}T12:00:00`));
+export const dateLabel = (date: string | null) =>
+  date === null
+    ? "À compléter"
+    : new Intl.DateTimeFormat("fr-FR", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }).format(new Date(`${date}T12:00:00`));
 export function ArticleDetail({
   article,
   rate,
@@ -111,9 +114,7 @@ export function ArticleDetail({
       {sold && (
         <div className="profit-preview">
           <span>Bénéfice net estimé</span>
-          <strong
-            className={profit(article, rate) < 0 ? "negative" : "positive"}
-          >
+          <strong className={amountClass(profit(article, rate))}>
             {money(profit(article, rate))}
           </strong>
         </div>

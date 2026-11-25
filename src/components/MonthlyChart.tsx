@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { BarChart3 } from "lucide-react";
-import { money, monthlyTotals } from "../lib/accounting";
+import { amountClass, money, monthlyTotals } from "../lib/accounting";
 import type { Article } from "../lib/model";
 const MONTHS = [
   "Jan",
@@ -42,9 +42,12 @@ export function MonthlyChart({
   const max = Math.max(
     1,
     ...rows.map((r) => r.revenue),
-    ...rows.map((r) => r.net),
+    ...rows.flatMap((r) => (r.net === null ? [] : [r.net])),
   );
-  const min = Math.min(0, ...rows.map((r) => r.net));
+  const min = Math.min(
+    0,
+    ...rows.flatMap((r) => (r.net === null ? [] : [r.net])),
+  );
   const scale = 187 / (max - min);
   const baseline = 25 + max * scale;
   const axisMoney = new Intl.NumberFormat("fr-FR", {
@@ -66,6 +69,11 @@ export function MonthlyChart({
           Bénéfice estimé
         </span>
       </div>
+      {rows.some((r) => r.net === null) && (
+        <p className="field-help">
+          Les bénéfices à compléter ne sont pas représentés par une barre.
+        </p>
+      )}
       <div className="chart-wrap">
         <svg
           className="monthly-chart"
@@ -110,7 +118,7 @@ export function MonthlyChart({
           {rows.map((row, i) => {
             const x = 66 + i * 52;
             const revenueHeight = row.revenue * scale;
-            const netHeight = Math.abs(row.net) * scale;
+            const netHeight = Math.abs(row.net ?? 0) * scale;
             return (
               <g
                 key={row.month}
@@ -147,14 +155,16 @@ export function MonthlyChart({
                   rx="3"
                   fill="#408674"
                 />
-                <rect
-                  x={x + 16}
-                  y={row.net >= 0 ? baseline - netHeight : baseline}
-                  width="13"
-                  height={netHeight}
-                  rx="3"
-                  fill={row.net >= 0 ? "#c2d69a" : "#d79b92"}
-                />
+                {row.net !== null && (
+                  <rect
+                    x={x + 16}
+                    y={(row.net ?? 0) >= 0 ? baseline - netHeight : baseline}
+                    width="13"
+                    height={netHeight}
+                    rx="3"
+                    fill={(row.net ?? 0) >= 0 ? "#c2d69a" : "#d79b92"}
+                  />
+                )}
                 <text
                   x={x + 14}
                   y="249"
@@ -184,7 +194,7 @@ export function MonthlyChart({
             {MONTHS[selected!]} {year}
           </strong>
           <span>CA : {money(selectedRow.revenue)}</span>
-          <span className={selectedRow.net < 0 ? "negative" : "positive"}>
+          <span className={amountClass(selectedRow.net)}>
             Bénéfice : {money(selectedRow.net)}
           </span>
         </div>

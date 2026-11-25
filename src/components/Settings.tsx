@@ -88,7 +88,7 @@ export function Settings({
       : "Le contenu de la sauvegarde chiffrée a été vérifié.\n\n";
     if (
       !window.confirm(
-        `${warning}Remplacer toutes les données de cet appareil par cette sauvegarde (${backup.articles.length} article${backup.articles.length > 1 ? "s" : ""}) ? Exportez d’abord les données actuelles si nécessaire.`,
+        `${warning}${backup.version === 1 ? "Cette ancienne sauvegarde ne contient pas le suivi des imports Gmail. Après restauration, vérifiez les doublons avant toute nouvelle importation.\n\n" : ""}Remplacer toutes les données de cet appareil par cette sauvegarde (${backup.articles.length} article${backup.articles.length > 1 ? "s" : ""}) ? Exportez d’abord les données actuelles si nécessaire.`,
       )
     )
       return;
