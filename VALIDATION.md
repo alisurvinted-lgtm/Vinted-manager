@@ -29,7 +29,17 @@ Le chiffrement au repos ne protège pas une session ouverte contre un appareil, 
 
 ### Publication
 
-Le résultat du workflow et la vérification du site seront ajoutés après publication effective. L’origine et le chemin existants sont conservés : https://alisurvinted-lgtm.github.io/Vinted-manager/.
+La livraison applicative `f11cbd3` a été publiée par [GitHub Actions 45626575176](https://github.com/alisurvinted-lgtm/Vinted-manager/actions/runs/45626575176) : **configure, build et deploy réussis**. Les journaux confirment **272 tests unitaires, 36 parcours intégrés et 10 parcours Gmail réussis**, audit npm sans vulnérabilité connue signalée.
+
+Après publication, les **17 fichiers statiques** ont tous répondu HTTP 200 en HTTPS et leurs empreintes SHA-256 correspondent aux fichiers locaux vérifiés : HTML, JavaScript, CSS, manifestes, service worker, Workbox et icônes. Adresse conservée : **https://alisurvinted-lgtm.github.io/Vinted-manager/**.
+
+Sur cette version publiée, WebKit au format iPhone a vérifié, dans une base temporaire : création et déverrouillage du coffre, absence de données comptables en clair dans IndexedDB, export chiffré, refus d’une mauvaise phrase, restauration, accès hors ligne et conservation après fermeture complète puis relance. Le trafic du parcours comptable ne contient que les ressources statiques du site, sans article ni phrase transmise.
+
+Un second parcours publié, avec OAuth et e-mails entièrement synthétiques, a confirmé les achats TTC préremplis, le rapprochement annonce/finalisation dans un même lot, la confirmation groupée, le coût inconnu signalé puis complété, les bénéfices recalculés et l’absence de doublons lors d’une nouvelle synchronisation. Le contrôle de lisibilité porte sur les textes et boutons visibles au-dessus des actions fixes, avec des cibles tactiles de 44 pixels, et non sur les marges vides des cartes.
+
+Le vrai SDK Google a aussi ouvert puis fermé son écran d’identifiant sous WebKit sans saisir de compte, donner de consentement ni lire d’e-mail. Cela ne valide pas le retour OAuth complet sur l’iPhone du propriétaire. L’écran de création de phrase et la migration des données de **son** appareil restent à effectuer par lui ; aucune intervention distante sur ses données réelles n’est revendiquée.
+
+La présente mise à jour du rapport ne modifie aucun fichier applicatif. Les preuves portent sur la livraison applicative ci-dessus.
 
 ---
 
