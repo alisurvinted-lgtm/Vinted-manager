@@ -162,13 +162,33 @@ test("Gmail : préremplissage, confirmation groupée, CA à coût inconnu, chiff
     path: `test-results/sync-${test.info().project.name}.png`,
     animations: "disabled",
   });
-  const firstRow = await page
+  // Vérifier le contenu et les cibles tactiles, pas la marge vide de la carte.
+  const first = page
     .getByRole("region", { name: "Opérations fiables" })
     .locator(".sync-row")
-    .first()
-    .boundingBox();
-  const footer = await page.locator(".sync-footer").boundingBox();
-  expect(firstRow!.y + firstRow!.height).toBeLessThanOrEqual(footer!.y);
+    .first();
+  await expect
+    .poll(async () => {
+      const footer = await page.locator(".sync-footer").boundingBox();
+      const content = await first.locator(".sync-row-main").boundingBox();
+      const buttons = await first
+        .locator(".sync-row-actions button")
+        .evaluateAll((all) =>
+          all.map((b) => {
+            const r = b.getBoundingClientRect();
+            return { bottom: r.bottom, width: r.width, height: r.height };
+          }),
+        );
+      return (
+        !!footer &&
+        !!content &&
+        content.y + content.height <= footer.y &&
+        buttons.every(
+          (b) => b.bottom <= footer.y && b.width >= 44 && b.height >= 44,
+        )
+      );
+    })
+    .toBe(true);
   expect(full).not.toContain("private1");
   expect(full).not.toContain("label1");
   await expect(

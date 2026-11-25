@@ -3633,6 +3633,7 @@ tbody tr:hover {
 .sync-row-actions button {
   font-size: 12px;
   min-height: 44px;
+  min-width: 44px;
 }
 .sync-row.is-ignored {
   opacity: 0.55;
