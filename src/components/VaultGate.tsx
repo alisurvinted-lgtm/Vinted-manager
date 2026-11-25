@@ -55,6 +55,7 @@ export function VaultGate({ children }: { children: ReactNode }) {
     if (!unlocked) return;
     const clock = new SessionLock(() => db.lock(), minutes * 60000);
     controller.current = clock;
+    clock.visibility(document.hidden);
     const activity = (event: Event) => {
       if (event.isTrusted) clock.activity();
     };

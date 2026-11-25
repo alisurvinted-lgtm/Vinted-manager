@@ -929,9 +929,9 @@ export function GmailImport({
     >
       <div className="sync-workspace">
         <p className="sync-privacy">
-          Lecture locale. Les opérations et éléments à vérifier seront
-          enregistrés chiffrés après votre validation. Les e-mails restent en
-          mémoire.
+          {stats && !stats.running
+            ? "Lecture terminée. Rien n’est enregistré avant validation."
+            : "Lecture locale. Les opérations seront enregistrées chiffrées après validation ; les e-mails restent en mémoire."}
         </p>
         {connected ? (
           <details
@@ -939,10 +939,7 @@ export function GmailImport({
             open={connectorOpen}
             onToggle={(e) => setConnectorOpen(e.currentTarget.open)}
           >
-            <summary>
-              Connexion et période
-              {stats && !stats.running ? " · modifier / révoquer" : ""}
-            </summary>
+            <summary>Connexion, période et révocation</summary>
             <iframe
               ref={iframe}
               title="Connexion et analyse Gmail"

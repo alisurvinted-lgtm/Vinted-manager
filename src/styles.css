@@ -3560,8 +3560,8 @@ tbody tr:hover {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  margin: 16px 0;
-  padding: 14px;
+  margin: 8px 0;
+  padding: 12px;
   background: #f4f7f1;
   border-radius: 14px;
 }
@@ -3632,7 +3632,7 @@ tbody tr:hover {
 }
 .sync-row-actions button {
   font-size: 12px;
-  min-height: 36px;
+  min-height: 44px;
 }
 .sync-row.is-ignored {
   opacity: 0.55;
