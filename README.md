@@ -37,7 +37,7 @@ Choisissez un mois, acceptez la lecture puis touchez **Synchroniser Gmail**. Une
 - Les dates explicites priment. Sinon, la date Gmail est proposée avec la mention **estimée** ; aucun encaissement n’est reconnu sans confirmation suffisante de l’événement.
 - Les références communes rapprochent annonce et encaissement, y compris dans un même lot ou de part et d’autre d’un changement de mois. Un nom seul ne suffit jamais. Une ressemblance avec un article manuel nécessite un choix rapide.
 - Un achat inconnu reste inconnu : CA/cotisations possibles, **Bénéfice à compléter**, puis saisie rapide dans la section dédiée. Les bénéfices connus sont distingués du total indéterminé.
-- Un lot conserve son total ; sa répartition est facultative et exige des coûts explicites dont la somme correspond au total, sans prix individuel inventé.
+- Un lot conserve son total et sa fiche originale archivée ; sa répartition est facultative et exige des coûts explicites dont la somme correspond au total, sans prix individuel inventé. Un lot déjà remboursé ou retourné reste indivisé pour préserver les corrections ; les corrections d’un lot réparti demandent une vérification manuelle.
 
 La lecture est manuelle, paginée par 20, plafonnée à 200 identifiants et dix pages par lancement. Les empreintes des messages connus évitent leur relecture. Un curseur de reprise chiffré n’est conservé qu’à la validation. Le mode **Historique** repart du début du mois choisi ; parcourez les autres mois pour les périodes antérieures. Une interruption ou un plafond est signalé comme parcours partiel. Aucun service de synchronisation permanent.
 

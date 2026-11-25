@@ -18,6 +18,10 @@ export async function splitBundle(
       a.pendingSale
     )
       throw new Error("Le lot a changé ou fait déjà l’objet d’une vente.");
+    if (a.refunds?.length || a.restockedFrom)
+      throw new Error(
+        "Ce lot possède un remboursement ou un retour : conservez sa fiche pour préserver les corrections. Sa répartition nécessite une vérification manuelle.",
+      );
     if (a.purchasePrice === null)
       throw new Error("Renseignez le coût total avant sa répartition.");
     if (a.quantity && a.quantity !== parts.length)
@@ -73,7 +77,7 @@ export async function splitBundle(
         purchaseReference: a.purchaseReference ?? null,
         purchaseDateEstimated: a.purchaseDateEstimated ?? false,
         quantity: 1,
-        purchaseAlreadyCounted: a.purchaseAlreadyCounted ?? false,
+        purchaseAlreadyCounted: true,
       };
       validateInput(input);
       children.push({
@@ -84,7 +88,7 @@ export async function splitBundle(
       });
     }
     await tx.articles.bulkAdd(children);
-    await tx.articles.delete(a.id);
+    await tx.articles.put({ ...a, archived: true, updatedAt: now });
     await tx.activities.add({
       id: crypto.randomUUID(),
       articleId: children[0].id,

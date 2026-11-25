@@ -503,6 +503,54 @@ describe("Lots et progression chiffrée", () => {
       purchaseOutflow: 1800,
     });
   });
+  it("garde la fiche originale d’un lot et refuse de perdre ses corrections lors d’une répartition", async () => {
+    await importVerified(
+      [
+        choice(
+          item({
+            kind: "purchase",
+            salePrice: null,
+            purchasePrice: 1800,
+            quantity: 2,
+            itemNames: ["Pull fictif", "Jean fictif"],
+            boost: 0,
+            cleaning: 0,
+          }),
+        ),
+      ],
+      db,
+    );
+    const [a] = await db.articles.toArray();
+    const parts = [
+      { name: "Pull", cost: 800, boost: 0, cleaning: 0 },
+      { name: "Jean", cost: 1000, boost: 0, cleaning: 0 },
+    ];
+    const withRefund = {
+      ...a,
+      refunds: [
+        {
+          id: "fictif-rembourse",
+          amount: 100,
+          date: "2026-11-29",
+          dateEstimated: false,
+          kind: "purchase" as const,
+        },
+      ],
+    };
+    await db.articles.put(withRefund);
+    await expect(splitBundle(a.id, parts, a.updatedAt, db)).rejects.toThrow(
+      /corrections/,
+    );
+    expect((await db.articles.get(a.id))?.refunds).toHaveLength(1);
+    await db.articles.put(a);
+    await splitBundle(a.id, parts, a.updatedAt, db);
+    expect((await db.articles.get(a.id))?.archived).toBe(true);
+    expect(await db.articles.count()).toBe(3);
+    expect(totals(await db.articles.toArray(), 1230, "2026-11")).toMatchObject({
+      stockCount: 2,
+      purchaseOutflow: 1800,
+    });
+  });
   it("conserve les éléments à vérifier et la reprise sans les comptabiliser", async () => {
     const p = item({
       kind: "incomplete",

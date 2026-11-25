@@ -6,7 +6,7 @@ Cette section décrit la livraison actuelle ; les sections suivantes sont des é
 
 | Contrôle            | Résultat local exécuté                                                                                                               |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Tests unitaires     | **270 réussis**, 13 fichiers                                                                                                         |
+| Tests unitaires     | **271 réussis**, 13 fichiers                                                                                                         |
 | Parcours intégrés   | **36 réussis**, 18 Chromium et 18 WebKit iPhone                                                                                      |
 | Lecteur Gmail       | **10 réussis**, 5 Chromium et 5 WebKit iPhone                                                                                        |
 | Dépendances         | Audit complet npm : **0 vulnérabilité connue signalée**                                                                              |
