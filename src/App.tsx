@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import {
   ArrowDownLeft,
@@ -99,14 +105,48 @@ export default function App() {
   const [toast, setToast] = useState("");
   const [online, setOnline] = useState(navigator.onLine);
   const [swError, setSwError] = useState(false);
+  const [applyingUpdate, setApplyingUpdate] = useState(false);
+  const applyingUpdateRef = useRef(false);
   const {
     needRefresh: [needRefresh],
-    updateServiceWorker,
   } = useRegisterSW({
+    // Le rechargement explicite ci-dessous couvre aussi la première installation,
+    // où Workbox peut ne pas qualifier controllerchange de « isUpdate ».
+    onNeedReload() {},
     onRegisterError() {
       setSwError(true);
     },
   });
+  async function applyUpdate() {
+    if (applyingUpdateRef.current) return;
+    applyingUpdateRef.current = true;
+    setApplyingUpdate(true);
+    try {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (!registration) throw new Error("Mise à jour indisponible.");
+      const reload = () => {
+        db.lock();
+        location.reload();
+      };
+      if (!registration.waiting) {
+        reload();
+        return;
+      }
+      navigator.serviceWorker.addEventListener("controllerchange", reload, {
+        once: true,
+      });
+      try {
+        registration.waiting.postMessage({ type: "SKIP_WAITING" });
+      } catch (error) {
+        navigator.serviceWorker.removeEventListener("controllerchange", reload);
+        throw error;
+      }
+    } catch {
+      applyingUpdateRef.current = false;
+      setApplyingUpdate(false);
+      setSwError(true);
+    }
+  }
   useEffect(() => {
     if (location.hash === "#gmail-import")
       history.replaceState(null, "", location.pathname + location.search);
@@ -272,8 +312,11 @@ export default function App() {
         {needRefresh && (
           <div className="update-banner" role="status">
             <span>Une nouvelle version est disponible.</span>
-            <button onClick={() => void updateServiceWorker(true)}>
-              Actualiser
+            <button
+              disabled={applyingUpdate}
+              onClick={() => void applyUpdate()}
+            >
+              {applyingUpdate ? "Actualisation…" : "Actualiser"}
             </button>
           </div>
         )}

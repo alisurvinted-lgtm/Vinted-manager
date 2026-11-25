@@ -1,5 +1,51 @@
 # Validation de Vinted Manager
 
+## Phase 5 — validation globale et livraison finale
+
+Point de départ vérifié : `eca6eceafb2e4f69dd052fdedc8c09d4ab242679` sur `feature/phase4-interface`. Continuité directe : `4045eeb` (coffre déjà publié), `007bcc0` (filtrage/extraction), `533d6ba` (rapprochement), `eca6ece` (parcours/tableau de bord), puis branche `release/phase5-validation`. Aucun développement n'a été reconstruit depuis `main`.
+
+### Audit et correction de livraison
+
+Revue des primitives du coffre, du stockage transactionnel/migrations, des sauvegardes, du verrouillage, de la frontière Gmail/OAuth, du parsing MIME/HTML, des calculs, du cache et du workflow. Aucun changement de format cryptographique, de schéma IndexedDB v4, de périmètre OAuth ou de règles de rapprochement. Les quatre phases sont conservées.
+
+Un contrôle de mise à jour ajouté a révélé un cas de premier lancement : Workbox pouvait activer le nouveau worker sans recharger l'écran, car l'événement n'était pas qualifié `isUpdate`. Le bouton « Actualiser » pilote maintenant l'activation du worker en attente, attend `controllerchange`, verrouille le coffre puis recharge. Aucun effacement de données, rechargement automatique sans validation ou contournement CSP. Les profils de test principal et du lecteur utilisent désormais **iPhone 15**.
+
+| Contrôle exécuté                                     | Résultat                                                                                                              |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Suite unitaire complète                              | **372 réussis**, 13 fichiers                                                                                          |
+| Application, tous les parcours existants             | **46 réussis**, 23 Chromium + 23 WebKit iPhone 15                                                                     |
+| Mise à jour/récupération depuis les fichiers publiés | **2 réussis**, Chromium + WebKit iPhone 15                                                                            |
+| Lecteur Gmail séparé                                 | **10 réussis**, 5 Chromium + 5 WebKit iPhone 15                                                                       |
+| Total navigateur                                     | **58 cas**, dont **29 WebKit iPhone 15**                                                                              |
+| Audit npm complet                                    | **0 vulnérabilité connue signalée**, toutes gravités                                                                  |
+| Sources, format et artefacts                         | Sélection fermée ; 13 fichiers statiques comptables et 4 du lecteur, aucun export ni donnée de test dans les bundles  |
+| TypeScript / builds                                  | Application et lecteur compilés ; base `/Vinted-manager/` conservée                                                   |
+| Historique Git                                       | Aucune signature reconnue de clé privée, jeton GitHub, clé AWS, jeton d'accès Google ou secret client Google détectée |
+
+Les cas unitaires vérifient AES-256-GCM, PBKDF2-SHA-256 à 600 000, IV neufs/collision refusée, AAD/métadonnées, clé non exportable, mauvaise phrase, altérations, écritures tardives/concurrentes, migration v1/v2/v3 et interruption/reprise, récupération chiffrée, anciennes sauvegardes, suivi des doublons restauré, inconnus `null`, calculs et corrections. Les tests de navigateur contrôlent aussi les différents espaces de stockage, les requêtes/URL/journaux synthétiques, la CSP/XSS, les caches statiques, les sauvegardes, la fermeture complète et les quatre indicateurs iPhone.
+
+L'évolution v4 est testée en téléchargeant seulement les fichiers statiques HTTPS du site avant publication (livraison `4045eeb`, script `assets/index-KWSBDyED.js`), puis en les servant à un profil de test isolé. Un article vendu avec ses frais et un export chiffré sont créés synthétiquement : nouvelle version activée sur la même origine de test, coffre comparé octet pour octet, module JS de la nouvelle version vérifié, ouverture, retour de secours v4, restauration du fichier ancien et offline. Un second contexte neuf vérifie le cas de première installation du worker. Aucun stockage ni e-mail de l'iPhone du propriétaire n'est lu ou modifié. Les empreintes des ressources publiques figurent dans la pièce de test `versions-statiques` ; aucune donnée comptable n'y figure.
+
+Le premier téléchargement automatisé a nécessité le proxy/CA de l'environnement Cloud ; le test respecte ces paramètres sans ignorer TLS. Les tests Gmail gardent le worker bloqué uniquement pour l'interception des messages synthétiques ; les tests PWA utilisent le vrai worker. Navigateurs locaux installés dans `/tmp/vinted-browsers`, validation du cache système des bibliothèques désactivée pour cet environnement ; aucun test ignoré. La CI exécute à nouveau l'ensemble des 48 parcours de l'application, les 10 du lecteur et les 372 tests avant son étape de publication.
+
+### Publication et récupération
+
+Le dépôt public existant `alisurvinted-lgtm/Vinted-manager` (`1459243181`), la branche de production et les autorisations admin/push/Pages ont été vérifiés. Avant intégration, `main` est encore `4045eeb`, ancêtre de toutes les phases. L'intégration finale doit rester une avance rapide si cette situation ne change pas ; tout changement concurrent doit être examiné avant le push. Le workflow existant garde ses permissions limitées par job et `enablement: false` ; seule la sélection statique contrôlée est publiée.
+
+La publication ne peut être déclarée réussie qu'après le succès du workflow du commit final et un contrôle HTTPS des ressources réellement servies à **https://alisurvinted-lgtm.github.io/Vinted-manager/**. Le compte rendu final fournit le commit et le lien du workflow effectivement observé ; les résultats locaux de cette section ne sont pas, seuls, une preuve de déploiement.
+
+Procédure documentée dans [SECURITE.md](./SECURITE.md#mise-à-jour-et-récupération-sans-effacement) : export chiffré préalable, même phrase pour un coffre existant, reprise de migration sans effacer Safari, retour du code de secours v4 pour lecture/export seulement, puis retour à la version corrigée. Ne jamais revenir avant v4 ni abaisser la version IndexedDB. Une restauration nécessite la phrase de la sauvegarde et une confirmation ; elle revient à l'état du fichier, sans inventer les opérations ultérieures. Aucun reset destructeur ni récupération serveur ajouté.
+
+### Risques résiduels et validation physique
+
+Le chiffrement protège le stockage persistant, pas un appareil compromis, un script autorisé malveillant ou une mise à jour compromise pendant une session ouverte. Le SDK Google et les autres projets de la même origine GitHub Pages restent une frontière de confiance. L'effacement immédiat de toutes les copies mémoire ou de la flash n'est pas garanti ; les IV plus anciens reposent sur l'aléa cryptographique et le remplacement complet par une ancienne copie valide n'est pas détectable de façon fiable. Safari peut évincer le stockage. Pas de récupération garantie sans phrase ni sauvegarde déchiffrable. Les exports JSON/CSV classiques restent explicitement non chiffrés.
+
+Google reçoit les échanges OAuth/Gmail nécessaires ; `gmail.readonly` couvre techniquement toute la boîte. Les jetons restent en mémoire et aucun contenu n'est envoyé à un analyseur tiers. Aucun secret client, tracker, serveur de données ou abonnement ajouté. GitHub Pages peut journaliser les accès aux fichiers statiques et ne permet pas tous les en-têtes de sécurité ; aucune protection absolue anti-iframe n'est revendiquée.
+
+Le compte Google réel, les modèles réels d'e-mails, le geste d'installation, le retour OAuth et les téléchargements sur l'iPhone 15 physique restent à confirmer par le propriétaire. L'application reste gratuite pour le dépôt public et l'usage personnel prévu ; ces tests ne garantissent pas la permanence des politiques de Google/GitHub. Les limites de reconnaissance, d'association sans référence et d'estimations de gestion/fiscales restent décrites dans README/SECURITE.
+
+---
+
 ## Phase 4 indépendante — parcours compact et tableau de bord, non déployée
 
 Départ vérifié : `533d6ba71b782e6e331e2eba75ec9b16e088f52e` sur `feature/phase3-rapprochement`. Branche de cette phase : `feature/phase4-interface`, créée directement depuis ce commit. La phase 3 et `main` restent inchangées. Aucun déploiement ou travail de phase 5 n'est lancé.

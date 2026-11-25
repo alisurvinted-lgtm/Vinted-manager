@@ -6,7 +6,7 @@ Adresse conservée : **https://alisurvinted-lgtm.github.io/Vinted-manager/** (V 
 
 ## Première ouverture après la mise à jour
 
-Créez une **phrase secrète d’au moins 16 caractères**, de préférence cinq mots aléatoires, puis confirmez l’avertissement. Ne la communiquez à personne. Elle protège la base locale active, pas seulement les sauvegardes.
+Si un coffre existe déjà, **déverrouillez-le avec votre phrase habituelle** : le schéma v4 et son format chiffré sont conservés. La création d’une phrase est réservée à une première utilisation ou à la protection d’anciennes données en clair. Dans ce cas, choisissez une **phrase secrète d’au moins 16 caractères**, de préférence cinq mots aléatoires, puis confirmez l’avertissement. Ne la communiquez à personne. Elle protège la base locale active, pas seulement les sauvegardes.
 
 Si des données anciennes sont détectées, une sauvegarde chiffrée préalable est proposée. La migration vérifie la copie chiffrée avant de vider les anciens enregistrements en clair. Une interruption peut être reprise avec la même phrase. **N’effacez pas les données Safari et ne désinstallez pas l’application pour réparer une migration.** Fermez les anciens onglets avant de commencer.
 
@@ -21,13 +21,13 @@ La perte de la phrase peut rendre le coffre irrécupérable. Aucun service, e-ma
 
 Le bouton **Verrouiller**, le rechargement et la fermeture abandonnent les références en mémoire. L’inactivité verrouille après cinq minutes par défaut (paramétrable à 1, 5 ou 15 minutes). Le passage en arrière-plan dispose de 30 secondes ; une autorisation Google en cours a une grâce limitée à cinq minutes, sans dépasser le délai d’inactivité. Le retour tardif impose un nouveau déverrouillage. JavaScript/iOS peuvent suspendre les temporisateurs : les échéances absolues sont aussi vérifiées à la reprise.
 
-Après le premier chargement complet et la création du coffre, les fonctions comptables locales restent accessibles **hors ligne après déverrouillage**. Gmail nécessite Internet. Les mises à jour du service worker demandent une actualisation et ne réinitialisent pas IndexedDB. Enregistrez les formulaires ouverts avant d’actualiser.
+Après le premier chargement complet et la création du coffre, les fonctions comptables locales restent accessibles **hors ligne après déverrouillage**. Gmail nécessite Internet. Les mises à jour du service worker demandent une actualisation et ne réinitialisent pas IndexedDB. Avant une mise à jour importante, exportez une sauvegarde chiffrée et fermez les autres fenêtres de l’application. Enregistrez les formulaires ouverts avant d’actualiser.
 
 ## Synchroniser Gmail
 
 L’intégration officielle existante est réutilisée : OAuth Google Identity Services, **gmail.readonly uniquement**, client public personnel déjà fourni. Aucun mot de passe Gmail/Vinted, secret client ou jeton de renouvellement. L’autorisation couvre techniquement **toute la boîte**, même si le code limite les recherches aux notifications Vinted.
 
-Choisissez un mois, acceptez la lecture puis touchez **Synchroniser Gmail**. Une seule validation enregistre les opérations fiables. Les lignes compactes affichent article, type, montant, date et statut ; les détails et modifications sont dépliables. Après analyse, le bloc de connexion se replie pour montrer les opérations ; période et révocation restent accessibles. Les opérations ambiguës et corrections sont conservées dans le coffre, sans effet financier automatique, pour être examinées séparément.
+Choisissez un mois, acceptez la lecture puis touchez **Synchroniser Gmail**. Vérifiez les anomalies, touchez **Valider les opérations fiables**, puis **Confirmer l’importation** dans le même écran. Le récapitulatif peut être quitté sans enregistrer ; aucun formulaire individuel n’est imposé pour les opérations reconnues. Les lignes compactes affichent article, type, montant, date et statut ; les détails et modifications sont dépliables. Après analyse, le bloc de connexion se replie pour montrer les opérations ; période et révocation restent accessibles. Les opérations ambiguës et corrections sont conservées dans le coffre, sans effet financier automatique, pour être examinées séparément.
 
 - **Reçu d’achat** : le libellé « Montant payé » fournit le coût TTC. Le port et la protection déjà inclus ne sont jamais déduits une seconde fois.
 - **Vente annoncée** : reste en attente et n’entre pas dans le chiffre d’affaires.
@@ -36,7 +36,7 @@ Choisissez un mois, acceptez la lecture puis touchez **Synchroniser Gmail**. Une
 - Les annulations et remboursements nécessitent une confirmation dédiée. Un retour physique peut remettre le bien en stock ou retirer un achat rendu au vendeur, en conservant l’historique.
 - Les dates explicites priment. Sinon, la date Gmail est proposée avec la mention **estimée** ; aucun encaissement n’est reconnu sans confirmation suffisante de l’événement.
 - Les références communes rapprochent annonce et encaissement, y compris dans un même lot ou de part et d’autre d’un changement de mois. Un nom seul ne suffit jamais. Une ressemblance avec un article manuel nécessite un choix rapide.
-- Un achat inconnu reste inconnu : CA/cotisations possibles, **Bénéfice à compléter**, puis saisie rapide dans la section dédiée. Les bénéfices connus sont distingués du total indéterminé.
+- Un achat inconnu reste inconnu : CA/cotisations possibles, **Bénéfice à compléter**, puis saisie rapide dans la fiche article ou la section dédiée. Les bénéfices connus sont distingués du total indéterminé.
 - Un lot conserve son total et sa fiche originale archivée ; sa répartition est facultative et exige des coûts explicites dont la somme correspond au total, sans prix individuel inventé. Un lot déjà remboursé ou retourné reste indivisé pour préserver les corrections ; les corrections d’un lot réparti demandent une vérification manuelle.
 
 La lecture est manuelle, paginée par 20, plafonnée à 200 identifiants et dix pages par lancement. Les empreintes des messages connus évitent leur relecture. Un curseur de reprise chiffré n’est conservé qu’à la validation. Le mode **Historique** repart du début du mois choisi ; parcourez les autres mois pour les périodes antérieures. Une interruption ou un plafond est signalé comme parcours partiel. Aucun service de synchronisation permanent.
@@ -71,7 +71,7 @@ Dans **Paramètres → Sauvegardes & données** :
 - Les anciens JSON et CSV existent toujours avec un avertissement explicite : **ces fichiers ne sont pas chiffrés**.
 - Limites : 20 Mo de JSON clair, 30 Mo d’enveloppe ; la taille réellement chiffrée est contrôlée avant écriture. Le coffre réécrit un instantané à chaque transaction : architecture destinée à une activité personnelle, pas à une base massive.
 
-Dans Fichiers, choisissez **Sur mon iPhone** pour éviter une synchronisation volontaire avec iCloud Drive. iOS peut aussi sauvegarder l’appareil ; la PWA ne contrôle pas ces mécanismes. Le coffre n’est pas un service de sauvegarde : effacement Safari, pression sur le stockage ou changement d’origine peuvent rendre la copie locale inaccessible. Les appareils ne sont pas synchronisés.
+Dans Fichiers, choisissez **Sur mon iPhone** pour éviter une synchronisation volontaire avec iCloud Drive. iOS peut aussi sauvegarder l’appareil ; la PWA ne contrôle pas ces mécanismes. Le coffre n’est pas un service de sauvegarde : effacement Safari, pression sur le stockage ou changement d’origine peuvent rendre la copie locale inaccessible. Les appareils ne sont pas synchronisés. Pour la procédure de récupération et les limites du retour arrière, consultez [SECURITE.md](./SECURITE.md#mise-à-jour-et-récupération-sans-effacement).
 
 Le chiffrement protège les données au repos, pas une session déverrouillée sur un appareil compromis ou face à un script autorisé malveillant. Le navigateur ne garantit pas l’effacement physique des anciennes pages de stockage ni de toutes les copies en mémoire. Aucune récupération automatique ou biométrie simulée n’est proposée.
 

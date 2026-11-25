@@ -54,22 +54,24 @@ export async function setup(
   page: Page,
   context: BrowserContext,
   selectedIds?: string[],
+  serveLocal = true,
 ) {
   const outbound: { url: string; body: string }[] = [];
   const full: string[] = [];
   context.on("request", (r) =>
     outbound.push({ url: r.url(), body: r.postData() ?? "" }),
   );
-  await context.route(root + "**", async (route) => {
-    const url = route.request().url();
-    const local = url.startsWith(root + "gmail-prototype/")
-      ? url.replace(
-          root + "gmail-prototype/",
-          "http://127.0.0.1:4175/Vinted-manager/gmail-prototype/",
-        )
-      : url.replace(root, "http://127.0.0.1:4173/Vinted-manager/");
-    await route.fulfill({ response: await route.fetch({ url: local }) });
-  });
+  if (serveLocal)
+    await context.route(root + "**", async (route) => {
+      const url = route.request().url();
+      const local = url.startsWith(root + "gmail-prototype/")
+        ? url.replace(
+            root + "gmail-prototype/",
+            "http://127.0.0.1:4175/Vinted-manager/gmail-prototype/",
+          )
+        : url.replace(root, "http://127.0.0.1:4173/Vinted-manager/");
+      await route.fulfill({ response: await route.fetch({ url: local }) });
+    });
   await context.route("https://accounts.google.com/gsi/client", (route) =>
     route.fulfill({
       contentType: "application/javascript",
