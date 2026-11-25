@@ -1080,7 +1080,22 @@ export function GmailImport({
                 </p>
               )}
               <section aria-label="Opérations fiables">
-                <details className="sync-review-section sync-ready-section">
+                <details
+                  className="sync-review-section sync-ready-section"
+                  onToggle={(e) => {
+                    const section = e.currentTarget;
+                    if (!section.open) return;
+                    requestAnimationFrame(() => {
+                      const dialog = section.closest("dialog");
+                      const header = dialog?.querySelector(".modal-header");
+                      if (dialog && header)
+                        dialog.scrollTop +=
+                          section.getBoundingClientRect().top -
+                          header.getBoundingClientRect().bottom -
+                          8;
+                    });
+                  }}
+                >
                   <summary>
                     {ready.length} opération(s) préremplie(s) · Voir / modifier
                   </summary>

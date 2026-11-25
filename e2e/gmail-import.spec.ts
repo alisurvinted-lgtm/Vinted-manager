@@ -195,16 +195,20 @@ test("Gmail : préremplissage, confirmation groupée, CA à coût inconnu, chiff
             return { bottom: r.bottom, width: r.width, height: r.height };
           }),
         );
-      return (
-        !!footer &&
-        !!content &&
-        content.y + content.height <= footer.y &&
-        buttons.every(
-          (b) => b.bottom <= footer.y && b.width >= 44 && b.height >= 44,
-        )
-      );
+      return {
+        contentClear:
+          !!footer && !!content && content.y + content.height <= footer.y,
+        buttonsTouchable:
+          !!footer &&
+          buttons.every(
+            (b) => b.bottom <= footer.y && b.width >= 44 && b.height >= 44,
+          ),
+        footer,
+        content,
+        buttons,
+      };
     })
-    .toBe(true);
+    .toMatchObject({ contentClear: true, buttonsTouchable: true });
   expect(full).not.toContain("private1");
   expect(full).not.toContain("label1");
   await expect(
@@ -560,10 +564,12 @@ test("phase 4 : bilan partiel, mois de Paris, bornes réelles et quatre indicate
           const nav = document
             .querySelector(".bottom-nav")!
             .getBoundingClientRect();
-          return (
-            [...document.querySelectorAll(".metrics-grid .metric-card")]
-              .slice(0, 4)
-              .every((el) => {
+          const cards = [
+            ...document.querySelectorAll(".metrics-grid .metric-card"),
+          ].slice(0, 4);
+          return {
+            visible:
+              cards.every((el) => {
                 const r = el.getBoundingClientRect();
                 return (
                   r.top >= 0 &&
@@ -571,11 +577,13 @@ test("phase 4 : bilan partiel, mois de Paris, bornes réelles et quatre indicate
                   r.left >= 0 &&
                   r.right <= innerWidth
                 );
-              }) && document.documentElement.scrollWidth <= innerWidth
-          );
+              }) && document.documentElement.scrollWidth <= innerWidth,
+            nav: { top: nav.top },
+            cards: cards.map((el) => el.getBoundingClientRect().toJSON()),
+          };
         }),
       )
-      .toBe(true);
+      .toMatchObject({ visible: true });
   }
   await page.screenshot({
     path: `test-results/dashboard-phase4-${test.info().project.name}.png`,
