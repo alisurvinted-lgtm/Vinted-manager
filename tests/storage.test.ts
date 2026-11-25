@@ -1,3 +1,4 @@
+import { TEST_VAULT_PHRASE, initializeTestVault } from "./test-vault";
 import Dexie from "dexie";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ManagerDB, deleteArticle, saveArticle, saveRate } from "../src/lib/db";
@@ -21,8 +22,9 @@ const input = (patch: Partial<ArticleInput> = {}): ArticleInput => ({
   fees: [],
   ...patch,
 });
-beforeEach(() => {
+beforeEach(async () => {
   db = new ManagerDB(`test-${crypto.randomUUID()}`);
+  await initializeTestVault(db);
 });
 afterEach(async () => {
   vi.restoreAllMocks();
@@ -97,12 +99,13 @@ describe("Articles et persistance IndexedDB", () => {
     const name = db.name;
     db.close();
     db = new ManagerDB(name);
+    await db.unlock(TEST_VAULT_PHRASE);
     expect((await db.articles.get(a.id))?.name).toBe(a.name);
     expect((await db.settings.get("preferences"))?.rateBps).toBe(1450);
   });
   it("migre une base v1 vers v2 sans perte", async () => {
     const name = db.name;
-    db.close();
+    await db.delete();
     const old = new Dexie(name);
     old
       .version(1)
@@ -116,6 +119,7 @@ describe("Articles et persistance IndexedDB", () => {
     await old.table("articles").put(record);
     old.close();
     db = new ManagerDB(name);
+    await db.initialize(TEST_VAULT_PHRASE);
     expect((await db.articles.get("migrated"))?.name).toBe(record.name);
     expect(await db.activities.count()).toBe(0);
   });
@@ -189,12 +193,14 @@ describe("Sauvegardes fiables", () => {
   it("annule la transaction si une écriture échoue après l’effacement", async () => {
     const a = await saveArticle(input(), undefined, db);
     const backup = await createBackup(db);
-    vi.spyOn(db.articles, "bulkAdd").mockRejectedValueOnce(
-      new Error("Quota dépassé"),
-    );
+    backup.articles[0].name = "Restauration synthétique différente";
+    const encrypt = vi
+      .spyOn(crypto.subtle, "encrypt")
+      .mockRejectedValueOnce(new Error("Quota dépassé"));
     await expect(restoreBackup(backup, db)).rejects.toThrow();
     expect(await db.articles.get(a.id)).toEqual(a);
     expect(await db.activities.count()).toBe(1);
+    encrypt.mockRestore();
   });
   it("exporte uniquement les ventes en CSV avec les décimales françaises", async () => {
     await saveArticle(input(), undefined, db);

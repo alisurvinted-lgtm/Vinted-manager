@@ -38,76 +38,157 @@ export const feeTotal = (article: Article) =>
   article.fees.reduce((sum, fee) => sum + fee.amount, 0);
 export const contribution = (saleCents: number, rateBps: number) =>
   Math.round((saleCents * rateBps) / 10000);
-export const profit = (article: Article, rateBps: number) =>
-  article.status === "sold"
-    ? article.purchasePrice === null
-      ? null
-      : article.salePrice! -
-        article.purchasePrice -
-        feeTotal(article) -
-        contribution(article.salePrice!, rateBps)
-    : 0;
+export const effectivePurchasePrice = (article: Article): number | null =>
+  article.purchasePrice === null
+    ? null
+    : article.purchasePrice -
+      (article.refunds ?? [])
+        .filter((r) => r.kind === "purchase")
+        .reduce((s, r) => s + r.amount, 0);
+export const profit = (article: Article, rateBps: number): number | null => {
+  if (article.status !== "sold") return 0;
+  const cost = effectivePurchasePrice(article);
+  if (cost === null) return null;
+  const refunded = (article.refunds ?? []).filter((r) => r.kind === "sale");
+  return (
+    article.salePrice! -
+    cost -
+    feeTotal(article) -
+    contribution(article.salePrice!, rateBps) +
+    refunded.reduce(
+      (s, r) =>
+        s -
+        r.amount +
+        contribution(r.amount, rateBps) +
+        (r.returnedStockId ? cost : 0),
+      0,
+    )
+  );
+};
 export function totals(articles: Article[], rateBps: number, period?: string) {
+  const inPeriod = (date: string | null | undefined) =>
+    !!date && (!period || date.startsWith(period));
   const sold = articles.filter(
-    (a) => a.status === "sold" && (!period || a.saleDate?.startsWith(period)),
+    (a) => a.status === "sold" && inPeriod(a.saleDate),
   );
-  const stock = articles.filter((a) => a.status === "stock");
+  const stock = articles.filter((a) => a.status === "stock" && !a.archived);
   const bought = articles.filter(
-    (a) => !period || a.purchaseDate?.startsWith(period),
+    (a) => !a.purchaseAlreadyCounted && (!period || inPeriod(a.purchaseDate)),
   );
-  const acquisitionCost = sold.reduce(
-    (sum, a) => sum + (a.purchasePrice ?? 0),
-    0,
+  const corrections = articles.flatMap((a) =>
+    (a.refunds ?? [])
+      .filter((r) => inPeriod(r.date))
+      .map((refund) => ({ article: a, refund })),
   );
+  const saleRefunds = corrections.filter((e) => e.refund.kind === "sale");
+  const purchaseRefunds = corrections
+    .filter((e) => e.refund.kind === "purchase")
+    .reduce((s, e) => s + e.refund.amount, 0);
+  const incompleteIds = new Set(
+    sold.filter((a) => effectivePurchasePrice(a) === null).map((a) => a.id),
+  );
+  for (const e of saleRefunds)
+    if (e.refund.returnedStockId && effectivePurchasePrice(e.article) === null)
+      incompleteIds.add(e.article.id);
   const boostFees = sold.reduce(
-    (sum, a) =>
-      sum +
+    (s, a) =>
+      s +
       a.fees
         .filter((f) => f.type === "Boost Vinted")
-        .reduce((fees, f) => fees + f.amount, 0),
+        .reduce((n, f) => n + f.amount, 0),
     0,
   );
   const cleaningFees = sold.reduce(
-    (sum, a) =>
-      sum +
+    (s, a) =>
+      s +
       a.fees
         .filter((f) => f.type === "Nettoyage")
-        .reduce((fees, f) => fees + f.amount, 0),
+        .reduce((n, f) => n + f.amount, 0),
     0,
   );
-  const revenue = sold.reduce((sum, a) => sum + a.salePrice!, 0);
-  const incompleteProfitCount = sold.filter(
-    (a) => a.purchasePrice === null,
-  ).length;
-  const net = incompleteProfitCount
+  const baseNet = (a: Article) => {
+    const c = effectivePurchasePrice(a);
+    return c === null
+      ? null
+      : a.salePrice! - c - feeTotal(a) - contribution(a.salePrice!, rateBps);
+  };
+  const correctionNet = (e: (typeof saleRefunds)[number]) => {
+    const c = effectivePurchasePrice(e.article);
+    return e.refund.returnedStockId && c === null
+      ? null
+      : -e.refund.amount +
+          contribution(e.refund.amount, rateBps) +
+          (e.refund.returnedStockId ? c! : 0);
+  };
+  const knownNet =
+    sold.reduce((s, a) => s + (baseNet(a) ?? 0), 0) +
+    saleRefunds.reduce((s, e) => s + (correctionNet(e) ?? 0), 0);
+  const revenue =
+    sold.reduce((s, a) => s + a.salePrice!, 0) -
+    saleRefunds.reduce((s, e) => s + e.refund.amount, 0);
+  const contributions =
+    sold.reduce((s, a) => s + contribution(a.salePrice!, rateBps), 0) -
+    saleRefunds.reduce((s, e) => s + contribution(e.refund.amount, rateBps), 0);
+  const purchaseOutflow = bought.some((a) => a.purchasePrice === null)
     ? null
-    : sold.reduce((sum, a) => sum + (profit(a, rateBps) ?? 0), 0);
+    : bought.reduce((s, a) => s + a.purchasePrice!, 0) - purchaseRefunds;
+  const asOf =
+    period?.length === 7
+      ? period + "-31"
+      : period?.length === 4
+        ? period + "-12-31"
+        : null;
+  const pending = articles.filter(
+    (a) =>
+      (!!asOf || !a.archived) &&
+      a.announcedSaleDate &&
+      (!asOf || a.announcedSaleDate <= asOf) &&
+      (!a.saleDate || (asOf && a.saleDate > asOf)) &&
+      (!a.cancellationDate || (asOf && a.cancellationDate > asOf)),
+  );
+  const net = incompleteIds.size ? null : knownNet;
   return {
     revenue,
     net,
-    acquisitionCost: incompleteProfitCount ? null : acquisitionCost,
-    incompleteProfitCount,
-    unknownPurchaseDates: articles.filter((a) => a.purchaseDate === null)
+    knownNet,
+    completeSoldCount: sold.filter((a) => effectivePurchasePrice(a) !== null)
       .length,
+    incompleteProfitCount: incompleteIds.size,
+    estimatedSaleDates: sold.filter((a) => a.saleDateEstimated).length,
+    acquisitionCost: sold.some((a) => effectivePurchasePrice(a) === null)
+      ? null
+      : sold.reduce((s, a) => s + effectivePurchasePrice(a)!, 0),
+    unknownPurchaseDates: articles.filter(
+      (a) => !a.purchaseDate && !a.purchaseAlreadyCounted,
+    ).length,
     boostFees,
     cleaningFees,
     salesFees: boostFees + cleaningFees,
-    purchaseOutflow: bought.some((a) => a.purchasePrice === null)
-      ? null
-      : bought.reduce((sum, a) => sum + (a.purchasePrice ?? 0), 0),
+    purchaseOutflow,
     purchasedCount: bought.length,
-    contributions: sold.reduce(
-      (sum, a) => sum + contribution(a.salePrice!, rateBps),
-      0,
-    ),
+    contributions,
     soldCount: sold.length,
-    stockCount: stock.length,
-    stockInvestment: stock.some((a) => a.purchasePrice === null)
+    stockCount: stock.reduce((s, a) => s + (a.quantity ?? 1), 0),
+    stockInvestment: stock.some((a) => effectivePurchasePrice(a) === null)
       ? null
-      : stock.reduce((sum, a) => sum + (a.purchasePrice ?? 0) + feeTotal(a), 0),
-    averageSale: sold.length ? Math.round(revenue / sold.length) : 0,
+      : stock.reduce((s, a) => s + effectivePurchasePrice(a)! + feeTotal(a), 0),
+    averageSale: sold.length
+      ? Math.round(sold.reduce((s, a) => s + a.salePrice!, 0) / sold.length)
+      : 0,
     averageProfit:
       net === null ? null : sold.length ? Math.round(net / sold.length) : 0,
+    pendingCount: pending.length,
+    pendingAmount: pending.some(
+      (a) => (a.pendingSale?.price ?? a.announcedSalePrice) === null,
+    )
+      ? null
+      : pending.reduce(
+          (s, a) => s + (a.pendingSale?.price ?? a.announcedSalePrice ?? 0),
+          0,
+        ),
+    purchaseRefunds,
+    saleRefundAmount: saleRefunds.reduce((s, e) => s + e.refund.amount, 0),
+    cashFlow: purchaseOutflow === null ? null : revenue - purchaseOutflow,
   };
 }
 export function monthlyTotals(

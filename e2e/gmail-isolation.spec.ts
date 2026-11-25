@@ -1,3 +1,4 @@
+import { openVault } from "./vault-helper";
 import { test, expect } from "@playwright/test";
 test("la connexion Gmail reste séparée et n’emprunte pas le repli hors ligne comptable", async ({
   page,
@@ -5,6 +6,7 @@ test("la connexion Gmail reste séparée et n’emprunte pas le repli hors ligne
   baseURL,
 }) => {
   await page.goto("./");
+  await openVault(page);
   await expect(page.locator(".metric-value").last()).toHaveText("0");
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
@@ -34,6 +36,7 @@ test("la connexion Gmail reste séparée et n’emprunte pas le repli hors ligne
   expect(unavailable).toBe(true);
   await diagnostic.close();
   await page.reload();
+  await openVault(page);
   await expect(page.locator(".metric-value").last()).toHaveText("0");
   await expect(
     page.getByText("Mode hors ligne", { exact: true }),

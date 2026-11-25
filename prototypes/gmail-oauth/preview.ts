@@ -1,24 +1,23 @@
+import { sourceKey } from "./identifiers";
+import { subjectType } from "./analyze";
 import { boundedText, GmailReadError, gmailRead, record } from "./gmail-api";
 import {
   decodeMailHeader,
   isAuthenticated,
   isFrenchVintedSender,
   messageText,
+  messageEvidence,
   onlyHeader,
   readHeaders,
 } from "./mail-content";
-import {
-  monthBounds,
-  proposedRow,
-  suggestKind,
-  type PreviewBatch,
-} from "./preview-model";
+import { monthBounds, proposedRow, type PreviewBatch } from "./preview-model";
 export const PREVIEW_PAGE_SIZE = 20;
 export const PREVIEW_MAX_MESSAGES = 200;
 export interface PreviewRequest {
   month: string;
   pageToken?: string;
   seenIds?: readonly string[];
+  knownSourceKeys?: readonly string[];
 }
 const headerNames = ["From", "Subject", "Authentication-Results"];
 const metadataFields = "id,internalDate,payload(headers),labelIds";
@@ -73,9 +72,15 @@ export async function readPreview(
   }
   const rows: PreviewBatch["rows"] = [];
   let ignored = 0;
+  let alreadyKnown = 0;
+  const knownSources = new Set(input.knownSourceKeys ?? []);
   // Séquentiel et borné : aucune synchronisation permanente ni relance automatique.
   for (const id of ids) {
     signal.throwIfAborted();
+    if (knownSources.has(await sourceKey(id))) {
+      alreadyKnown++;
+      continue;
+    }
     const metadataParams = new URLSearchParams({
       format: "metadata",
       fields: metadataFields,
@@ -118,13 +123,18 @@ export async function readPreview(
         .slice(0, 512)
         .replace(/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g, "") ||
       "Notification sans objet";
+    if (subjectType(subject) === null) {
+      ignored++;
+      continue;
+    }
     const authenticated = isAuthenticated(headers);
+    let evidence: { names: string[]; references: string[] } | undefined;
     let text = "",
       warning: string | null = null;
     if (!authenticated)
       warning =
         "Authentification de l’expéditeur non confirmée. Le contenu n’a pas été chargé ; vérifiez dans Gmail.";
-    else if (suggestKind(subject) === "Notification à examiner")
+    else if (subjectType(subject) === null)
       warning =
         "Objet non reconnu comme transaction. Le contenu n’a pas été chargé ; vérifiez dans Gmail.";
     else {
@@ -138,6 +148,7 @@ export async function readPreview(
         if (!record(content) || content.id !== id)
           throw new Error("Message inattendu.");
         text = messageText(content.payload);
+        evidence = messageEvidence(content.payload);
         if (!text)
           warning = "Aucun texte exploitable. Consultez le message dans Gmail.";
       } catch (error) {
@@ -158,6 +169,7 @@ export async function readPreview(
         authenticated,
         text,
         warning,
+        evidence,
       ),
     );
   }
@@ -176,11 +188,10 @@ export async function readPreview(
     rows,
     seenIds: [...known],
     limited: known.size >= PREVIEW_MAX_MESSAGES && typeof next === "string",
-    nextPageToken:
-      known.size < PREVIEW_MAX_MESSAGES && typeof next === "string"
-        ? next
-        : null,
+    nextPageToken: typeof next === "string" ? next : null,
     examined: ids.length,
     ignored,
+    alreadyKnown,
+    complete: !next,
   };
 }

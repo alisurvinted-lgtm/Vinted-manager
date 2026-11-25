@@ -1,3 +1,4 @@
+import { sourceKey, stageKey, referenceKey, relatedKeys } from "./identifiers";
 import {
   digest,
   validateSelection,
@@ -50,4 +51,56 @@ export async function prepareSelection(
     });
   }
   return validateSelection(result);
+}
+
+export async function proposalSelection(
+  rows: PreviewRow[],
+): Promise<VerifiedNotification[]> {
+  const result: VerifiedNotification[] = [];
+  for (const row of rows) {
+    if (!row.authenticated) continue;
+    const a = row.analysis;
+    if (!a) continue;
+    const id = await sourceKey(row.id);
+    const ref = a.reference;
+    const kind =
+      a.confirmed &&
+      a.name &&
+      (!["sale_final", "sale_announced"].includes(a.kind) ||
+        a.salePrice !== null)
+        ? a.kind
+        : "incomplete";
+    result.push({
+      sourceKey: id,
+      eventKey:
+        ref && !["refund", "cancellation"].includes(a.kind)
+          ? await stageKey(a.kind, ref)
+          : id,
+      referenceKey: ref ? await referenceKey(ref) : null,
+      relatedKeys: ref ? await relatedKeys(ref) : {},
+      kind,
+      detectedKind: a.kind,
+      name: a.name?.slice(0, 120) ?? "Nom à compléter",
+      date: a.date,
+      purchaseDate: a.kind === "purchase" ? a.date : null,
+      purchasePrice: a.purchasePrice,
+      salePrice: a.salePrice,
+      boost: 0,
+      cleaning: 0,
+      genre: "Unisexe",
+      category: "Autre",
+      dateEstimated: a.dateEstimated,
+      confidence: a.confidence,
+      confirmed: a.confirmed,
+      quantity: a.quantity,
+      itemNames: a.itemNames,
+      acquisition: {
+        itemPrice: a.itemPrice,
+        shipping: a.shipping,
+        protection: a.protection,
+        otherFees: a.otherFees,
+      },
+    });
+  }
+  return result.length ? validateSelection(result) : [];
 }

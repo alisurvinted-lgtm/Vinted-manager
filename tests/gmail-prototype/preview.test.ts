@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { sourceKey } from "../../prototypes/gmail-oauth/identifiers";
 import { gmailRead } from "../../prototypes/gmail-oauth/gmail-api";
 import {
   decodeMailHeader,
@@ -158,11 +159,11 @@ describe("Sélection et authenticité des notifications", () => {
       { month: "2026-01" },
       new AbortController().signal,
     );
-    expect(batch.rows).toHaveLength(2);
+    expect(batch.rows).toHaveLength(1);
+    expect(batch.ignored).toBe(1);
     expect(batch.rows[0].authenticated).toBe(false);
     expect(batch.rows[0].text).toBe("");
     expect(batch.rows[0].warning).toContain("non confirmée");
-    expect(batch.rows[1].warning).toContain("Objet non reconnu");
     expect(
       api.calls.some((c) => c.url.searchParams.get("format") === "full"),
     ).toBe(false);
@@ -256,6 +257,45 @@ describe("Lecture locale bornée et pagination", () => {
     expect(again.rows).toHaveLength(0);
     expect(again.examined).toBe(0);
   });
+  it("évite même la lecture des métadonnées pour les sources déjà connues", async () => {
+    const api = server({});
+    const batch = await readPreview(
+      token,
+      { month: "2026-01", knownSourceKeys: [await sourceKey("a1")] },
+      new AbortController().signal,
+    );
+    expect(batch.alreadyKnown).toBe(1);
+    expect(batch.rows).toEqual([]);
+    expect(api.calls).toHaveLength(1);
+    expect(batch.complete).toBe(true);
+  });
+  it("plafonne à 200 et conserve le curseur de reprise sans annoncer un succès complet", async () => {
+    const seen = Array.from({ length: 199 }, (_, i) => "old" + i);
+    const api = server(
+      { "meta:a1": metadata("a1"), "body:a1": body("a1") },
+      { messages: [{ id: "a1" }], nextPageToken: "suite-fictive" },
+    );
+    const batch = await readPreview(
+      token,
+      { month: "2026-01", seenIds: seen, pageToken: "avant-fictif" },
+      new AbortController().signal,
+    );
+    expect(batch).toMatchObject({
+      limited: true,
+      complete: false,
+      nextPageToken: "suite-fictive",
+    });
+    expect(api.calls[0].url.searchParams.get("maxResults")).toBe("1");
+  });
+  it.each([429, 500])(
+    "ne qualifie pas de réussie une lecture réseau interrompue (%s)",
+    async (status) => {
+      server({}, new Response("Erreur synthétique", { status }));
+      await expect(
+        readPreview(token, { month: "2026-01" }, new AbortController().signal),
+      ).rejects.toThrow();
+    },
+  );
   it.each([
     { messages: [{ id: "../personnel" }] },
     { messages: "invalide" },

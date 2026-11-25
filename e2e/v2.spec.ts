@@ -1,3 +1,4 @@
+import { openVault } from "./vault-helper";
 import { test, expect, type Page } from "@playwright/test";
 async function tab(page: Page, name: string) {
   await page
@@ -37,14 +38,9 @@ async function snapshot(page: Page) {
 }
 async function legacyData(page: Page) {
   await page.goto("./");
-  await expect(page.locator(".metric-value").last()).toHaveText("0");
-  // Terminer l’installation initiale avant le premier rechargement du scénario.
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.ready;
-  });
-  await expect
-    .poll(() => page.evaluate(() => !!navigator.serviceWorker.controller))
-    .toBe(true);
+  await expect(
+    page.getByRole("heading", { name: "Créer mon espace chiffré" }),
+  ).toBeVisible();
   await page.evaluate(
     () =>
       new Promise<void>((resolve, reject) => {
@@ -102,6 +98,7 @@ async function legacyData(page: Page) {
       }),
   );
   await page.reload();
+  await openVault(page, true);
   await expect(page.locator(".metric-value").last()).toHaveText("1");
 }
 test("V2 : bilan mensuel, coût des ventes distinct des achats, historique, année et conservation des données", async ({
@@ -131,7 +128,9 @@ test("V2 : bilan mensuel, coût des ventes distinct des achats, historique, ann�
   await expect(
     report
       .locator(".monthly-facts>div")
-      .filter({ hasText: "Nettoyage" })
+      .filter({
+        has: page.locator("dt", { hasText: /^Nettoyage des ventes$/ }),
+      })
       .locator("dd"),
   ).toHaveText(/1,00/);
   await expect(report.locator(".monthly-result>strong")).toHaveText(/12,69/);
@@ -168,6 +167,7 @@ test("V2 : bilan mensuel, coût des ventes distinct des achats, historique, ann�
     .toBe(true);
   await context.setOffline(true);
   await page.reload();
+  await openVault(page, true);
   await page.getByLabel("Mois sélectionné").fill("2026-01");
   await expect(page.locator(".monthly-result>strong")).toHaveText(/12,69/);
   expect(await snapshot(page)).toEqual(before);

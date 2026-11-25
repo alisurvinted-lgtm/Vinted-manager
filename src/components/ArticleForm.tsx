@@ -69,6 +69,20 @@ export function ArticleForm({
       genre,
       category,
       purchaseDate: purchaseDate || null,
+      ...(article?.purchaseDateEstimated !== undefined
+        ? {
+            purchaseDateEstimated:
+              purchaseDate === article.purchaseDate
+                ? article.purchaseDateEstimated
+                : false,
+          }
+        : {}),
+      ...(article?.saleDateEstimated !== undefined
+        ? {
+            saleDateEstimated:
+              saleDate === article.saleDate ? article.saleDateEstimated : false,
+          }
+        : {}),
       purchasePrice: purchase === "" && article ? null : parseMoney(purchase),
       status: sold ? "sold" : "stock",
       salePrice: sold ? parseMoney(sale) : null,

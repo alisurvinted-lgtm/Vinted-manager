@@ -1,3 +1,4 @@
+import { initializeTestVault } from "./test-vault";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDecipheriv, pbkdf2Sync } from "node:crypto";
 import { ManagerDB, saveArticle, saveRate } from "../src/lib/db";
@@ -11,8 +12,9 @@ import {
 } from "../src/lib/crypto-backup";
 const phrase = "__VM_SECRET_TEST__ cinq mots fictifs pour les tests";
 let db: ManagerDB;
-beforeEach(() => {
+beforeEach(async () => {
   db = new ManagerDB(`crypto-test-${crypto.randomUUID()}`);
+  await initializeTestVault(db);
 });
 afterEach(async () => {
   await db.delete();

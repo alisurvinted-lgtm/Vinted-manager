@@ -222,3 +222,89 @@ summary {
 small {
   font-size: 12px;
 }
+body.embedded {
+  margin: 0;
+  background: white;
+}
+.sync-reader {
+  padding: 24px;
+  margin: 20px auto;
+  max-width: 760px;
+}
+.embedded .sync-reader {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+  padding: 4px 0;
+  max-width: none;
+}
+.embedded .sync-reader h1 {
+  display: none;
+}
+.reader-consent {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 8px 0 16px;
+}
+.reader-consent input {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.reader-controls {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 12px;
+  margin: 12px 0;
+}
+.reader-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+.reader-controls input,
+.reader-controls select {
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  font-size: 16px;
+  padding: 9px;
+  border: 1px solid #cad9ca;
+  border-radius: 8px;
+  background: white;
+}
+.sync-reader > button {
+  width: 100%;
+  min-height: 48px;
+}
+.reader-status {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px;
+  background: #edf3e9;
+  border-radius: 8px;
+}
+.reader-counts,
+.reader-access {
+  font-size: 12px;
+  color: #59675b;
+}
+.reader-access p {
+  font-size: 12px;
+}
+.reader-message pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.reader-message button {
+  width: 100%;
+  font-size: 14px;
+}

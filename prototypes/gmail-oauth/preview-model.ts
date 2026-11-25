@@ -1,8 +1,11 @@
+import { parisDate, parisMonthBounds } from "../../protocols/paris";
+import { analyzeNotification, type Analysis } from "./analyze";
 export const REVIEW_KINDS = {
   incomplete: "Transaction incomplète",
   sale_announced: "Vente annoncée",
   sale_final: "Vente finalisée",
   purchase: "Achat confirmé",
+  purchase_final: "Achat finalisé (suivi)",
   cancellation: "Annulation",
   refund: "Remboursement",
 } as const;
@@ -21,6 +24,7 @@ export interface PreviewRow {
   amounts: AmountMention[];
   reference: string | null;
   warning: string | null;
+  analysis?: Analysis;
   draft: {
     kind: ReviewKind;
     article: string;
@@ -30,6 +34,7 @@ export interface PreviewRow {
     cleaning: string;
     date: string;
     purchaseDate: string;
+    dateEstimated?: boolean;
     checked: boolean;
   };
 }
@@ -40,6 +45,8 @@ export interface PreviewBatch {
   nextPageToken: string | null;
   examined: number;
   ignored: number;
+  alreadyKnown?: number;
+  complete?: boolean;
   limited: boolean;
 }
 export function monthBounds(month: string) {
@@ -49,14 +56,10 @@ export function monthBounds(month: string) {
     month > currentMailMonth()
   )
     throw new Error("Choisissez un mois de réception valide.");
-  const [year, number] = month.split("-").map(Number);
-  const start = new Date(year, number - 1, 1).getTime();
-  const end = new Date(year, number, 1).getTime();
-  return { start, end };
+  return parisMonthBounds(month);
 }
 export function currentMailMonth() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  return parisDate().slice(0, 7);
 }
 export function moneyCents(value: string): number | null {
   const normalized = value
@@ -122,8 +125,12 @@ export function proposedRow(
   authenticated: boolean,
   text: string,
   warning: string | null,
+  evidence?: { names?: string[]; references?: string[] },
 ): PreviewRow {
+  const analysis = analyzeNotification(subject, text, receivedAt, evidence);
+  const usable = authenticated && analysis.confirmed;
   return {
+    analysis,
     id,
     subject,
     receivedAt,
@@ -134,13 +141,20 @@ export function proposedRow(
     reference: explicitReference(text),
     warning,
     draft: {
-      kind: "incomplete",
-      article: "",
-      purchase: "",
-      sale: "",
+      kind: usable ? analysis.kind : "incomplete",
+      article: usable ? (analysis.name ?? "") : "",
+      purchase:
+        usable && analysis.purchasePrice !== null
+          ? (analysis.purchasePrice / 100).toFixed(2)
+          : "",
+      sale:
+        usable && analysis.salePrice !== null
+          ? (analysis.salePrice / 100).toFixed(2)
+          : "",
       boost: "",
       cleaning: "",
-      date: "",
+      date: usable ? analysis.date : "",
+      dateEstimated: usable && analysis.dateEstimated,
       purchaseDate: "",
       checked: false,
     },

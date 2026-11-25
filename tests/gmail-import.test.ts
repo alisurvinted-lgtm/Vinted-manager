@@ -1,3 +1,4 @@
+import { TEST_VAULT_PHRASE, initializeTestVault } from "./test-vault";
 import Dexie from "dexie";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ManagerDB, saveArticle } from "../src/lib/db";
@@ -41,8 +42,9 @@ const choice = (
   distinctConfirmed: false,
   ...patch,
 });
-beforeEach(() => {
+beforeEach(async () => {
   db = new ManagerDB("import-" + crypto.randomUUID());
+  await initializeTestVault(db);
 });
 afterEach(async () => {
   await db.delete();
@@ -307,6 +309,7 @@ describe("Doublons, rapprochement explicite et atomicité", () => {
 });
 describe("Migration et sauvegarde", () => {
   it("migre une base v2 sans réécrire les articles, frais, opérations et réglages", async () => {
+    await db.delete();
     const old = new Dexie(db.name);
     old.version(2).stores({
       articles: "id, status, saleDate, updatedAt",
@@ -331,8 +334,8 @@ describe("Migration et sauvegarde", () => {
     await old.table("articles").put(article);
     await old.table("settings").put({ id: "preferences", rateBps: 1500 });
     old.close();
-    await db.open();
-    expect(db.verno).toBe(3);
+    await db.initialize(TEST_VAULT_PHRASE);
+    expect(db.verno).toBe(4);
     expect(await db.articles.get("ancien")).toEqual(article);
     expect((await db.settings.get("preferences"))?.rateBps).toBe(1500);
     expect(await db.imports.count()).toBe(0);
@@ -343,7 +346,7 @@ describe("Migration et sauvegarde", () => {
       db,
     );
     const backup = await createBackup(db);
-    expect(backup.version).toBe(2);
+    expect(backup.version).toBe(3);
     const phrase = "__VM_SECRET_TEST__ phrase synthétique longue";
     const file = await encryptBackup(backup, phrase);
     await expect(

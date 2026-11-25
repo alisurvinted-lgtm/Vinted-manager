@@ -1,39 +1,9 @@
-import Dexie, { type Table } from "dexie";
-import type { ImportRecord } from "../../protocols/gmail-transfer";
-import {
-  defaultSettings,
-  type Activity,
-  type Article,
-  type ArticleInput,
-  type Settings,
-} from "./model";
-import { validateInput } from "./validation";
+import { completeReturnedCosts } from "./acquisition-cost";
+import { ManagerDB } from "./secure-db";
+export { ManagerDB } from "./secure-db";
+import { defaultSettings, type Article, type ArticleInput } from "./model";
+import { articleDetails, validateInput } from "./validation";
 
-export class ManagerDB extends Dexie {
-  articles!: Table<Article, string>;
-  settings!: Table<Settings, string>;
-  activities!: Table<Activity, string>;
-  imports!: Table<ImportRecord, string>;
-  constructor(name = "vinted-manager") {
-    super(name);
-    this.version(1).stores({
-      articles: "id, status, saleDate, updatedAt",
-      settings: "id",
-    });
-    this.version(2).stores({
-      articles: "id, status, saleDate, updatedAt",
-      settings: "id",
-      activities: "id, date",
-    });
-    // Migration additive : aucune table existante n’est vidée ou réécrite.
-    this.version(3).stores({
-      articles: "id, status, saleDate, updatedAt",
-      settings: "id",
-      activities: "id, date",
-      imports: "id, &eventKey, articleId, kind, date",
-    });
-  }
-}
 export const db = new ManagerDB();
 export async function saveArticle(
   input: ArticleInput,
@@ -45,18 +15,31 @@ export async function saveArticle(
     "rw",
     database.articles,
     database.activities,
-    async () => {
-      const previous = id ? await database.articles.get(id) : undefined;
+    async (tx) => {
+      const previous = id ? await tx.articles.get(id) : undefined;
       if (id && !previous) throw new Error("Cet article n’existe plus.");
       const now = new Date().toISOString();
+      if (
+        previous?.refunds?.length &&
+        previous.status === "sold" &&
+        input.status === "stock"
+      )
+        throw new Error(
+          "Utilisez le retour en stock associé au remboursement pour conserver l’historique financier.",
+        );
       const article: Article = {
+        ...(previous ? articleDetails(previous) : {}),
         ...input,
         name: input.name.trim(),
         id: id ?? crypto.randomUUID(),
         createdAt: previous?.createdAt ?? now,
         updatedAt: now,
       };
-      await database.articles.put(article);
+      if (article.status === "sold") delete article.pendingSale;
+      validateInput(article);
+      await tx.articles.put(article);
+      if (previous?.purchasePrice === null && article.purchasePrice !== null)
+        await completeReturnedCosts(tx, article);
       const type = previous
         ? previous.status !== article.status
           ? article.status === "sold"
@@ -66,7 +49,7 @@ export async function saveArticle(
         : article.status === "sold"
           ? "sold"
           : "created";
-      await database.activities.add({
+      await tx.activities.add({
         id: crypto.randomUUID(),
         articleId: article.id,
         name: article.name,
@@ -86,11 +69,17 @@ export async function deleteArticle(id: string, database = db) {
     "rw",
     database.articles,
     database.activities,
-    async () => {
-      const article = await database.articles.get(id);
+    async (tx) => {
+      const article = await tx.articles.get(id);
       if (!article) throw new Error("Cet article n’existe plus.");
-      await database.articles.delete(id);
-      await database.activities.add({
+      if (article.refunds?.length)
+        await tx.articles.put({
+          ...article,
+          archived: true,
+          updatedAt: new Date().toISOString(),
+        });
+      else await tx.articles.delete(id);
+      await tx.activities.add({
         id: crypto.randomUUID(),
         articleId: id,
         name: article.name,
@@ -104,7 +93,8 @@ export async function deleteArticle(id: string, database = db) {
 export async function saveRate(rateBps: number, database = db) {
   if (!Number.isInteger(rateBps) || rateBps < 0 || rateBps > 10000)
     throw new Error("Taux invalide.");
-  const current =
-    (await database.settings.get("preferences")) ?? defaultSettings;
-  await database.settings.put({ ...current, rateBps });
+  await database.transaction("rw", async (tx) => {
+    const current = (await tx.settings.get("preferences")) ?? defaultSettings;
+    await tx.settings.put({ ...current, rateBps });
+  });
 }

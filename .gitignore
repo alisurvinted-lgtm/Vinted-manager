@@ -24,7 +24,7 @@ ventes-vinted-*.csv
 *.zip
 *.vmbackup
 
-# Prototype OAuth : build séparé, jamais publié par Pages.
+# Lecteur OAuth : build intermédiaire, assemblé uniquement après vérification.
 .prototype-build/
 
 # Artefact Pages contrôlé, sans données locales.

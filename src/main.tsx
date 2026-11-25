@@ -1,6 +1,7 @@
 import { Component, StrictMode, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { VaultGate } from "./components/VaultGate";
 import "./styles.css";
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -35,7 +36,9 @@ class ErrorBoundary extends Component<
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      <VaultGate>
+        <App />
+      </VaultGate>
     </ErrorBoundary>
   </StrictMode>,
 );

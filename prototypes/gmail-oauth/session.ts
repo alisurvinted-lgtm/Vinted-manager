@@ -91,6 +91,11 @@ export interface ProbeDependencies {
     input: PreviewRequest,
     signal: AbortSignal,
   ) => Promise<PreviewBatch>;
+  previewContext?: () => {
+    knownSourceKeys?: readonly string[];
+    pageToken?: string;
+    period?: string;
+  };
   notifyPreview?: (batch: PreviewBatch | null, append: boolean) => void;
 }
 // Seule cette fermeture conserve temporairement le jeton. Les états publics ne le contiennent jamais.
@@ -274,9 +279,21 @@ export function createProbe(config: ProbeConfig, deps: ProbeDependencies) {
         return;
       }
       if (append && (month !== previewMonth || !nextPageToken)) return;
+      const context = deps.previewContext?.() ?? {};
       const input: PreviewRequest = append
-        ? { month, pageToken: nextPageToken!, seenIds }
-        : { month };
+        ? {
+            month,
+            pageToken: nextPageToken!,
+            seenIds,
+            knownSourceKeys: context.knownSourceKeys,
+          }
+        : {
+            month,
+            knownSourceKeys: context.knownSourceKeys,
+            ...(context.period === month && context.pageToken
+              ? { pageToken: context.pageToken }
+              : {}),
+          };
       if (!append) forgetPreview();
       const attempt = generation;
       request = new AbortController();
@@ -296,6 +313,7 @@ export function createProbe(config: ProbeConfig, deps: ProbeDependencies) {
         seenIds = batch.seenIds;
         deps.notifyPreview?.(batch, append);
         publish("previewReady");
+        return batch;
       } catch {
         if (attempt !== generation) return;
         clear();

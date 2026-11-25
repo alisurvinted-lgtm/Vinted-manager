@@ -34,6 +34,8 @@ export const sourceFiles = [
   "prototypes/gmail-oauth/preview-model.ts",
   "prototypes/gmail-oauth/preview.ts",
   "prototypes/gmail-oauth/transfer.ts",
+  "prototypes/gmail-oauth/analyze.ts",
+  "prototypes/gmail-oauth/identifiers.ts",
   "prototypes/gmail-oauth/PreviewPanel.tsx",
   "prototypes/gmail-oauth/style.css",
   "prototypes/gmail-oauth/vite.config.ts",

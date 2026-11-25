@@ -1,3 +1,4 @@
+import { openVault } from "./vault-helper";
 import { test, expect, type Page } from "@playwright/test";
 async function create(page: Page, name = "Sweat Carhartt bordeaux") {
   await page
@@ -30,11 +31,13 @@ test("créer, recharger, modifier, vendre avec plusieurs frais et supprimer", as
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("./");
+  await openVault(page);
   await expect(
     page.getByText("Tout commence par une trouvaille"),
   ).toBeVisible();
   await create(page);
   await page.reload();
+  await openVault(page);
   await tab(page, "Mes articles");
   await expect(page.locator(".article-info strong")).toHaveText(
     "Sweat Carhartt bordeaux",
@@ -103,6 +106,7 @@ test("sauvegarde JSON, confirmation, validation et restauration depuis l’inter
   page,
 }) => {
   await page.goto("./");
+  await openVault(page);
   await create(page, "Jean sauvegardé");
   await page.getByRole("button", { name: "Ouvrir les paramètres" }).click();
   await page.getByLabel("Taux de cotisations").fill("14,5");
@@ -136,6 +140,7 @@ test("sauvegarde JSON, confirmation, validation et restauration depuis l’inter
   await expect(page.getByLabel("Taux de cotisations")).toHaveValue("14,5");
   await page.getByRole("button", { name: "Fermer", exact: true }).click();
   await page.reload();
+  await openVault(page);
   await tab(page, "Mes articles");
   await expect(page.locator(".article-info strong")).toHaveText(
     "Jean sauvegardé",
@@ -147,6 +152,7 @@ test("PWA disponible hors ligne après chargement et données conservées", asyn
   context,
 }) => {
   await page.goto("./");
+  await openVault(page);
   await create(page, "Article hors ligne");
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
@@ -156,6 +162,7 @@ test("PWA disponible hors ligne après chargement et données conservées", asyn
     .toBe(true);
   await context.setOffline(true);
   await page.reload();
+  await openVault(page);
   await expect(page.getByText("Mode hors ligne")).toBeVisible();
   await tab(page, "Mes articles");
   await expect(page.locator(".article-info strong")).toHaveText(
@@ -163,6 +170,7 @@ test("PWA disponible hors ligne après chargement et données conservées", asyn
   );
   await create(page, "Ajout hors ligne");
   await page.reload();
+  await openVault(page);
   await tab(page, "Mes articles");
   await expect(page.locator(".article-row")).toHaveCount(2);
   await context.setOffline(false);
@@ -172,6 +180,7 @@ test("recherche, filtres, statistiques et écran mobile sans débordement", asyn
   page,
 }) => {
   await page.goto("./");
+  await openVault(page);
   await create(page, "Polaire Patagonia");
   await tab(page, "Mes articles");
   await page.getByLabel("Rechercher par nom").fill("inexistant");

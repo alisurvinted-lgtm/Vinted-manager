@@ -102,9 +102,18 @@ export function htmlAsText(html: string): string {
         chunks.push(
           name === "br" ||
             (tag.startsWith("/") &&
-              ["p", "div", "li", "tr", "table", "h1", "h2", "h3"].includes(
-                name,
-              ))
+              [
+                "p",
+                "div",
+                "li",
+                "tr",
+                "td",
+                "th",
+                "table",
+                "h1",
+                "h2",
+                "h3",
+              ].includes(name))
             ? "\n"
             : " ",
         );
@@ -224,4 +233,60 @@ export function decodeMailHeader(value: string): string {
         }
       },
     );
+}
+
+export function messageEvidence(payload: unknown): {
+  names: string[];
+  references: string[];
+} {
+  const names = new Set<string>(),
+    references = new Set<string>();
+  let visited = 0;
+  function walk(part: unknown, depth: number) {
+    if (!record(part) || depth > 8 || ++visited > 120) return;
+    if (boundedText(part.filename, 1024)) return;
+    if (
+      part.mimeType === "text/html" &&
+      record(part.body) &&
+      typeof part.body.data === "string"
+    ) {
+      const html = decodeBase64Text(part.body.data);
+      for (const m of html.matchAll(
+        /<img\b[^>]{0,4096}\balt\s*=\s*["']([^"']{2,180})["'][^>]{0,4096}>/gi,
+      )) {
+        const value = htmlAsText(m[1]).replace(/\s+/g, " ").trim();
+        if (
+          value.length >= 4 &&
+          value.length <= 160 &&
+          !/vinted|logo|avatar|profil|icon|etoile|étoile|protection acheteur|livraison|application|photo du vendeur|^image$|^article$/i.test(
+            value,
+          ) &&
+          !/@|https?:/.test(value)
+        )
+          names.add(value);
+        if (names.size > 20) break;
+      }
+      for (const m of html.matchAll(/\bhref\s*=\s*["']([^"']{1,1024})["']/gi)) {
+        try {
+          const url = new URL(m[1].replaceAll("&amp;", "&"));
+          if (
+            url.protocol !== "https:" ||
+            !["vinted.fr", "www.vinted.fr"].includes(url.hostname)
+          )
+            continue;
+          const id = url.pathname.match(
+            /^\/transactions?\/([a-zA-Z0-9-]{4,128})(?:\/|$)/,
+          )?.[1];
+          if (id) references.add(id);
+        } catch {
+          /* Un lien n’est jamais suivi. */
+        }
+        if (references.size > 20) break;
+      }
+    }
+    if (Array.isArray(part.parts))
+      for (const child of part.parts.slice(0, 100)) walk(child, depth + 1);
+  }
+  walk(payload, 0);
+  return { names: [...names], references: [...references] };
 }

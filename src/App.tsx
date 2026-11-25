@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { useLiveQuery } from "dexie-react-hooks";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import {
   ArrowDownLeft,
@@ -43,6 +42,8 @@ import { Settings } from "./components/Settings";
 import { MonthlyChart } from "./components/MonthlyChart";
 import { MonthlyReport } from "./components/MonthlyReport";
 import { GmailImport } from "./components/GmailImport";
+import { MissingCosts } from "./components/MissingCosts";
+import { BundleForm } from "./components/BundleForm";
 import { ImportReview } from "./components/ImportReview";
 import { VintedImport } from "./components/VintedImport";
 import { isMonth, monthLabel, moveMonth } from "./lib/periods";
@@ -51,11 +52,12 @@ type Tab = "home" | "articles" | "stats";
 type View =
   | { type: "add" }
   | { type: "detail"; id: string }
+  | { type: "bundle"; id: string }
   | { type: "edit"; id: string; action?: "sell" | "fees" }
   | { type: "settings" }
   | { type: "help" }
   | { type: "vinted-import" }
-  | { type: "gmail-import" }
+  | { type: "gmail-import"; sourceId?: string }
   | null;
 const navItems = [
   { id: "home", title: "Accueil", icon: Home },
@@ -72,22 +74,26 @@ const activityLabels: Record<Activity["type"], string> = {
 };
 
 export default function App() {
-  const data = useLiveQuery(async () => ({
-    articles: await db.articles.toArray(),
-    imports: (await db.imports.toArray()).filter((i) => !i.resolved),
-    settings: (await db.settings.get("preferences")) ?? defaultSettings,
-    activities: await db.activities
-      .orderBy("date")
-      .reverse()
-      .limit(5)
-      .toArray(),
-  }));
+  const revision = useSyncExternalStore(db.subscribe, db.getSnapshot);
+  const data = useMemo(() => {
+    if (!db.isUnlocked) return undefined;
+    const state = db.read();
+    return {
+      articles: state.articles,
+      allImports: state.imports,
+      imports: state.imports.filter((i) => !i.resolved),
+      settings: state.settings[0] ?? defaultSettings,
+      activities: [...state.activities]
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 5),
+    };
+  }, [revision]);
   const [tab, setTab] = useState<Tab>("home");
   const [view, setView] = useState<View>(() =>
     location.hash === "#gmail-import" ? { type: "gmail-import" } : null,
   );
   const [month, setMonth] = useState(currentMonth());
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [year, setYear] = useState(Number(currentMonth().slice(0, 4)));
   const [filter, setFilter] = useState<"all" | "stock" | "sold">("all");
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState("");
@@ -127,9 +133,9 @@ export default function App() {
   const settings = data?.settings ?? defaultSettings;
   const summary = totals(articles, settings.rateBps, month);
   const annual = totals(articles, settings.rateBps, String(year));
-  const sorted = [...articles].sort((a, b) =>
-    b.updatedAt.localeCompare(a.updatedAt),
-  );
+  const sorted = articles
+    .filter((a) => !a.archived)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const visible = sorted.filter(
     (a) =>
       (filter === "all" || a.status === filter) &&
@@ -138,7 +144,8 @@ export default function App() {
         .includes(search.toLocaleLowerCase("fr").trim()),
   );
   const viewedArticle =
-    view && (view.type === "detail" || view.type === "edit")
+    view &&
+    (view.type === "detail" || view.type === "edit" || view.type === "bundle")
       ? articles.find((a) => a.id === view.id)
       : undefined;
   const years = [
@@ -242,6 +249,13 @@ export default function App() {
             </span>
           </div>
           <div className="topbar-right">
+            <button
+              className="icon-button"
+              aria-label="Verrouiller"
+              onClick={() => db.lock()}
+            >
+              <LockKeyhole size={20} />
+            </button>
             <span className="device-status">
               {online ? <span className="tiny-dot" /> : <WifiOff size={14} />}
               <span>{online ? "Sur cet appareil" : "Mode hors ligne"}</span>
@@ -359,8 +373,17 @@ export default function App() {
                     />
                     <Metric
                       title="Bénéfice net estimé"
-                      amount={money(summary.net)}
-                      caption="Après achats, frais et cotisations"
+                      amount={
+                        summary.incompleteProfitCount > 0 &&
+                        summary.completeSoldCount > 0
+                          ? money(summary.knownNet)
+                          : money(summary.net)
+                      }
+                      caption={
+                        summary.incompleteProfitCount
+                          ? `${summary.completeSoldCount} ventes calculées · ${summary.incompleteProfitCount} bénéfices à compléter`
+                          : "Après achats, frais et cotisations"
+                      }
                       icon={ArrowDownLeft}
                       positive={summary.net !== null && summary.net >= 0}
                       negative={summary.net !== null && summary.net < 0}
@@ -390,7 +413,7 @@ export default function App() {
                       disabled={!online}
                       onClick={() => setView({ type: "gmail-import" })}
                     >
-                      Importer depuis Gmail
+                      Synchroniser Gmail
                     </button>
                     <span>
                       {online
@@ -398,8 +421,20 @@ export default function App() {
                         : "La connexion Gmail nécessite Internet. Vos articles restent disponibles hors ligne."}
                     </span>
                   </div>
-                  <ImportReview records={data.imports} />
+                  <MissingCosts articles={articles} />
+                  <ImportReview
+                    records={data.imports}
+                    onReview={(id) =>
+                      setView({ type: "gmail-import", sourceId: id })
+                    }
+                  />
                   <MonthlyReport
+                    reviewCount={
+                      (data?.imports ?? []).filter(
+                        (r) =>
+                          !r.resolved && (!r.date || r.date.startsWith(month)),
+                      ).length
+                    }
                     articles={articles}
                     rate={settings.rateBps}
                     month={month}
@@ -846,10 +881,18 @@ export default function App() {
           article={viewedArticle}
           rate={settings.rateBps}
           onClose={() => setView(null)}
+          onSplit={() => setView({ type: "bundle", id: viewedArticle.id })}
           onEdit={(action) =>
             setView({ type: "edit", id: viewedArticle.id, action })
           }
           onSaved={saved}
+        />
+      )}
+      {view?.type === "bundle" && viewedArticle && (
+        <BundleForm
+          article={viewedArticle}
+          onClose={() => setView(null)}
+          onSaved={() => saved("Lot réparti, sans changement du coût total.")}
         />
       )}
       {view?.type === "settings" && (
@@ -862,6 +905,9 @@ export default function App() {
       {view?.type === "gmail-import" && (
         <GmailImport
           articles={articles}
+          records={data?.allImports ?? []}
+          settings={settings}
+          sourceId={view.sourceId}
           onClose={() => setView(null)}
           onSaved={saved}
         />

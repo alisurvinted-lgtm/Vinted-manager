@@ -12,10 +12,12 @@ export function MonthlyReport({
   articles,
   rate,
   month,
+  reviewCount = 0,
 }: {
   articles: Article[];
   rate: number;
   month: string;
+  reviewCount?: number;
 }) {
   const report = monthlyReport(articles, rate, month);
   const { current, previous } = report;
@@ -31,6 +33,23 @@ export function MonthlyReport({
         </div>
       </div>
       <dl className="monthly-facts">
+        <Fact
+          title="Ventes en attente à la fin du mois"
+          value={money(current.pendingAmount)}
+        />
+        <Fact
+          title="Capital dans le stock actuel"
+          value={money(current.stockInvestment)}
+        />
+        <Fact
+          title="Encaissements − achats du mois"
+          value={money(current.cashFlow)}
+          help="Flux connu, hors dates de paiement des boosts/nettoyages"
+        />
+        <Fact
+          title="Transactions à compléter ou vérifier"
+          value={String(current.incompleteProfitCount + reviewCount)}
+        />
         <Fact title="Articles vendus" value={String(current.soldCount)} />
         <Fact title="Prix de vente moyen" value={money(current.averageSale)} />
         <Fact
@@ -84,6 +103,27 @@ export function MonthlyReport({
           {current.incompleteProfitCount} vente(s) au bénéfice à compléter.{" "}
           {current.unknownPurchaseDates} date(s) d’achat inconnue(s), exclues
           des dépenses mensuelles tant qu’elles ne sont pas renseignées.
+        </p>
+      )}
+      {current.estimatedSaleDates > 0 && (
+        <p className="field-help">
+          {current.estimatedSaleDates} date(s) d’encaissement estimée(s) depuis
+          la notification Gmail, modifiables dans la fiche article.
+        </p>
+      )}
+      {current.incompleteProfitCount > 0 && (
+        <p className="info-box">
+          Bénéfices calculés sur les ventes complètes :{" "}
+          {money(current.knownNet)}. {current.incompleteProfitCount} résultat(s)
+          encore indéterminé(s).
+        </p>
+      )}
+      {(current.saleRefundAmount > 0 || current.purchaseRefunds > 0) && (
+        <p className="info-box">
+          Remboursements de ventes : {money(current.saleRefundAmount)} ·
+          remboursements d’achats : {money(current.purchaseRefunds)}. Les
+          corrections sont placées à leur date. Les cotisations restent estimées
+          et doivent être vérifiées pour la déclaration.
         </p>
       )}
       <p className="monthly-method">

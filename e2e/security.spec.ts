@@ -1,3 +1,4 @@
+import { openVault } from "./vault-helper";
 import { test, expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 const privateName = "__VM_PRIVATE_TEST__ article synthétique";
@@ -37,6 +38,7 @@ test("sauvegarde chiffrée, refus du mauvais secret et de l’altération, resta
   );
   page.on("console", (message) => logs.push(message.text()));
   await page.goto("./");
+  await openVault(page);
   await create(page);
   await settings(page);
   await page.getByLabel("Taux de cotisations").fill("14,5");
@@ -149,6 +151,7 @@ test("CSP interdit les connexions et scripts injectés ; le texte HTML est écha
   page,
 }) => {
   await page.goto("./");
+  await openVault(page);
   const hostile = '<img src=x onerror="window.vmXss=1">';
   await create(page, hostile);
   expect(
@@ -196,6 +199,7 @@ test("le cache ne contient que des ressources statiques locales et aucune sauveg
   baseURL,
 }) => {
   await page.goto("./");
+  await openVault(page);
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
   });

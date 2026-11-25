@@ -1,3 +1,4 @@
+import { openVault, diskSnapshot } from "./vault-helper";
 import { test, expect } from "@playwright/test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,6 +10,7 @@ test("manifeste, icônes et service worker restent dans le dossier Pages", async
   baseURL,
 }) => {
   await page.goto("./");
+  await openVault(page);
   const urls = await page.evaluate(async () => {
     const manifestURL = document.querySelector<HTMLLinkElement>(
       'link[rel="manifest"]',
@@ -69,6 +71,7 @@ test("IndexedDB conserve les données après fermeture complète et relance du n
   try {
     const page = context.pages()[0] ?? (await context.newPage());
     await page.goto("./");
+    await openVault(page);
     await page
       .getByRole("button", { name: "Ajouter un article" })
       .first()
@@ -86,36 +89,18 @@ test("IndexedDB conserve les données après fermeture complète et relance du n
     );
     const reopened = context.pages()[0] ?? (await context.newPage());
     await reopened.goto("./");
+    await expect(
+      reopened.getByRole("heading", { name: "Déverrouiller mon espace" }),
+    ).toBeVisible();
+    await openVault(reopened);
     await expect(reopened.locator(".metric-value").last()).toHaveText("1");
-    const stored = await reopened.evaluate(
-      () =>
-        new Promise<{ count: number; name: string }>((resolve, reject) => {
-          const opening = indexedDB.open("vinted-manager");
-          opening.onerror = () => reject(opening.error);
-          opening.onsuccess = () => {
-            const database = opening.result;
-            const query = database
-              .transaction("articles")
-              .objectStore("articles")
-              .getAll();
-            query.onsuccess = () => {
-              resolve({
-                count: query.result.length,
-                name: query.result[0]?.name,
-              });
-              database.close();
-            };
-            query.onerror = () => {
-              database.close();
-              reject(query.error);
-            };
-          };
-        }),
+    const stored = await diskSnapshot(reopened);
+    expect(stored.articles).toEqual([]);
+    expect(stored.settings).toEqual([]);
+    expect(stored.vault).toHaveLength(1);
+    expect(JSON.stringify(stored)).not.toContain(
+      "Article test fermeture navigateur",
     );
-    expect(stored).toEqual({
-      count: 1,
-      name: "Article test fermeture navigateur",
-    });
   } finally {
     await context.close();
     await rm(profile, { recursive: true, force: true });

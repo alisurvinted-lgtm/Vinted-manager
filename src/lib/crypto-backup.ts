@@ -1,4 +1,4 @@
-import { parseBackup, type Backup } from "./backup";
+import { parseBackup, type Backup } from "./backup-format";
 
 export const PBKDF2_ITERATIONS = 600_000;
 export const MAX_ENCRYPTED_BYTES = 30 * 1024 * 1024;

@@ -24,11 +24,13 @@ export function ArticleDetail({
   rate,
   onClose,
   onEdit,
+  onSplit,
   onSaved,
 }: {
   article: Article;
   rate: number;
   onClose: () => void;
+  onSplit: () => void;
   onEdit: (action?: "sell" | "fees") => void;
   onSaved: (message: string) => void;
 }) {
@@ -75,7 +77,9 @@ export function ArticleDetail({
       </div>
       <dl className="detail-list">
         <div>
-          <dt>Date d’achat</dt>
+          <dt>
+            Date d’achat{article.purchaseDateEstimated ? " (estimée)" : ""}
+          </dt>
           <dd>{dateLabel(article.purchaseDate)}</dd>
         </div>
         <div>
@@ -85,7 +89,10 @@ export function ArticleDetail({
         {sold && (
           <>
             <div>
-              <dt>Date de vente</dt>
+              <dt>
+                Date d’encaissement
+                {article.saleDateEstimated ? " (estimée)" : ""}
+              </dt>
               <dd>{dateLabel(article.saleDate!)}</dd>
             </div>
             <div>
@@ -120,7 +127,34 @@ export function ArticleDetail({
         </div>
       )}
       {error && <ErrorMessage>{error}</ErrorMessage>}
+      {article.pendingSale && (
+        <p className="info-box">
+          Vente en attente : {money(article.pendingSale.price)}. Aucun chiffre
+          d’affaires compté tant que l’encaissement n’est pas confirmé.
+        </p>
+      )}
+      {article.refunds?.length ? (
+        <section>
+          <h3>Corrections tracées</h3>
+          {article.refunds.map((r) => (
+            <p key={r.id}>
+              {r.kind === "sale"
+                ? "Remboursement de vente"
+                : "Remboursement d’achat"}{" "}
+              : {money(r.amount)} · {dateLabel(r.date)}
+              {r.dateEstimated ? " (estimée)" : ""}
+              {r.returnedStockId ? " · article retourné en stock" : ""}
+            </p>
+          ))}
+        </section>
+      ) : null}
       <div className="detail-actions">
+        {article.status === "stock" &&
+          (article.quantity ?? article.bundleItems?.length ?? 1) > 1 && (
+            <button className="button secondary" onClick={onSplit}>
+              Répartir le lot par article
+            </button>
+          )}
         {!sold && (
           <button className="button primary" onClick={() => onEdit("sell")}>
             <Check size={18} /> Marquer comme vendu
@@ -135,7 +169,7 @@ export function ArticleDetail({
         {sold && (
           <button
             className="button secondary"
-            disabled={busy}
+            disabled={busy || !!article.refunds?.length}
             onClick={() => action("restock")}
           >
             <RotateCcw size={17} /> Repasser en stock

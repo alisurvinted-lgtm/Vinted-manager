@@ -1,5 +1,40 @@
 # Validation de Vinted Manager
 
+## Livraison du 25 novembre 2026 — coffre actif et automatisation Gmail
+
+Cette section décrit la livraison actuelle ; les sections suivantes sont des états historiques et ne décrivent pas le stockage actuel. Aucun accès aux données du propriétaire ni à ses e-mails réels. Les données de test sont synthétiques, dans des profils de navigateur temporaires.
+
+| Contrôle            | Résultat local exécuté                                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Tests unitaires     | **270 réussis**, 13 fichiers                                                                                                         |
+| Parcours intégrés   | **36 réussis**, 18 Chromium et 18 WebKit iPhone                                                                                      |
+| Lecteur Gmail       | **10 réussis**, 5 Chromium et 5 WebKit iPhone                                                                                        |
+| Dépendances         | Audit complet npm : **0 vulnérabilité connue signalée**                                                                              |
+| TypeScript / builds | Application et lecteur compilés sous leurs chemins Pages                                                                             |
+| Sources / artefacts | Liste fermée ; 13 fichiers comptables + 4 fichiers du lecteur ; aucun export, secret ou marqueur de données de test dans les bundles |
+
+Les tests couvrent le coffre AES-256-GCM, clé non extractible, PBKDF2 600 000, authentification des métadonnées, collision d’IV refusée, mauvais secret, altération, absence de clair dans les quatre tables historiques, paramètres/historique/imports chiffrés, écriture transactionnelle et refus d’écriture concurrente ou tardive après verrouillage. Les anciennes bases v1/v2/v3 et sauvegardes v1/v2 restent compatibles. Une migration interrompue conserve le clair jusqu’au contrôle puis reprend ; si une ancienne fenêtre a modifié le contenu, une copie chiffrée de récupération est gardée.
+
+Les scénarios comptables vérifient TTC prioritaire sans double frais, annonces sans CA, crédit final rapproché dans les deux ordres et entre deux mois, prix d’achat inconnu, lots répartis explicitement, remboursements partiels/successifs, retour physique en stock sans nouvelle acquisition et absence de doublon. Les périodes utilisent Europe/Paris, avec changement d’année et d’heure. Le complément d’un coût inconnu recalcule les résultats et les coûts manquants du même bien retourné.
+
+Gmail est simulé : scopes stricts, expéditeur/domaine/authentification, trois catégories pertinentes, bordereaux et messages personnels exclus avant lecture du corps, MIME/HTML inerte, montants contradictoires, dates estimées et invalides, références ambiguës, pagination plafonnée avec reprise, source connue non relue, expiration, erreur réseau et révocation. Un test a révélé un texte de détail restant affiché après révocation ; ce défaut a été corrigé et le test passe. Aucun corps, objet, adresse ou jeton n’est persisté.
+
+Les navigateurs vérifient la confirmation groupée depuis la page comptable, les corrections séparées, l’annulation sans écriture, le complément rapide du coût, la conservation après fermeture complète, le rechargement verrouillé, la migration interrompue, les sauvegardes chiffrées, CSP/XSS, absence de fuite dans les requêtes synthétiques et caches, ainsi que le mode hors ligne après déverrouillage. Les tests Gmail interceptés bloquent les service workers dans leur contexte ; les parcours PWA séparés gardent le vrai worker.
+
+### Vérification physique et limites
+
+La connexion/révocation Safari et PWA antérieure a été rapportée par le propriétaire. Les nouveaux parcours complets utilisent des OAuth et messages synthétiques : ils ne prouvent pas la compatibilité de tous les modèles réels Vinted ni le retour OAuth du nouvel écran sur l’iPhone du propriétaire. Le propriétaire doit créer sa phrase sur son appareil pour migrer sa propre base, puis essayer une synchronisation réelle. Aucune migration à distance de son iPhone n’est revendiquée.
+
+Le chiffrement au repos ne protège pas une session ouverte contre un appareil, un SDK ou une mise à jour compromis. Aucune biométrie n’est activée, aucune destruction physique de l’ancien clair ou des copies mémoire n’est garantie. GitHub Pages ne permet pas tous les en-têtes de sécurité et partage l’origine entre projets du même compte. Détails dans [SECURITE.md](./SECURITE.md).
+
+### Publication
+
+Le résultat du workflow et la vérification du site seront ajoutés après publication effective. L’origine et le chemin existants sont conservés : https://alisurvinted-lgtm.github.io/Vinted-manager/.
+
+---
+
+# Historique des validations antérieures
+
 ## Livraison du 25 novembre 2026 — import Gmail confirmé, phase 3
 
 Périmètre autorisé : enregistrer les transactions explicitement vérifiées, avec confirmation finale, détection des doublons et coûts d’achat inconnus signalés. Aucun e-mail réel n’a été consulté par l’agent. Les jetons, messages, objets et adresses ne sont pas persistés ; seuls les champs comptables confirmés et les empreintes de suivi rejoignent la base locale existante.

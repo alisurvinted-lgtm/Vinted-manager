@@ -1,3 +1,4 @@
+import { initializeTestVault } from "./test-vault";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Dexie from "dexie";
 import {
@@ -84,6 +85,7 @@ describe("Import Vinted en attente d’un format vérifié", () => {
     old.close();
     const database = new ManagerDB(name);
     databases.push(database);
+    await initializeTestVault(database);
     const before = await createBackup(database);
     const file = new File(["aucun format confirmé"], "export.zip", {
       type: "application/zip",
@@ -102,6 +104,6 @@ describe("Import Vinted en attente d’un format vérifié", () => {
     expect(after.settings).toEqual(before.settings);
     expect(after.activities).toEqual(before.activities);
     expect(after.articles).toEqual([article]);
-    expect(database.verno).toBe(3);
+    expect(database.verno).toBe(4);
   });
 });

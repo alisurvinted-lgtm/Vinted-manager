@@ -1,4 +1,10 @@
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import {
   Check,
   Download,
@@ -43,6 +49,14 @@ export function Settings({
   articles: Article[];
   onClose: () => void;
 }) {
+  const [recovery, setRecovery] = useState(false),
+    [exportRecovery, setExportRecovery] = useState(false);
+  useEffect(() => {
+    void db
+      .hasMigrationRecovery()
+      .then(setRecovery)
+      .catch(() => {});
+  }, []);
   const [rate, setRate] = useState(rateLabel(settings.rateBps));
   const [error, setError] = useState("");
   const [success, notify] = useState("");
@@ -63,10 +77,12 @@ export function Settings({
     setMode(null);
   }
   async function recordExport() {
-    const current = (await db.settings.get("preferences")) ?? settings;
-    await db.settings.put({
-      ...current,
-      lastExportAt: new Date().toISOString(),
+    await db.transaction("rw", async (tx) => {
+      const current = (await tx.settings.get("preferences")) ?? settings;
+      await tx.settings.put({
+        ...current,
+        lastExportAt: new Date().toISOString(),
+      });
     });
   }
   async function changeRate(e: FormEvent) {
@@ -175,13 +191,17 @@ export function Settings({
     setBusy(true);
     try {
       if (mode === "export") {
-        const content = await encryptBackup(await createBackup(), passphrase);
+        const data = exportRecovery
+          ? await db.migrationRecovery()
+          : await createBackup();
+        if (!data) throw new Error("Aucune copie de migration disponible.");
+        const content = await encryptBackup(data, passphrase);
         download(
           content,
           `vinted-manager-${today()}.vmbackup`,
           "application/octet-stream",
         );
-        await recordExport();
+        if (!exportRecovery) await recordExport();
         notify(
           "Sauvegarde chiffrée exportée. Conservez sa phrase secrète séparément.",
         );
@@ -210,6 +230,45 @@ export function Settings({
       onClose={onClose}
       closeDisabled={busy}
     >
+      <section className="settings-section">
+        <h3>Protection de l’espace</h3>
+        <label>
+          Verrouillage après inactivité
+          <select
+            aria-label="Délai de verrouillage"
+            value={settings.autoLockMinutes ?? 5}
+            onChange={async (e) => {
+              const minutes = Number(e.target.value);
+              if (![1, 5, 15].includes(minutes)) return;
+              try {
+                await db.transaction("rw", async (tx) => {
+                  const current =
+                    (await tx.settings.get("preferences")) ?? settings;
+                  await tx.settings.put({
+                    ...current,
+                    autoLockMinutes: minutes as 1 | 5 | 15,
+                  });
+                });
+                notify("Délai de verrouillage enregistré.");
+              } catch {
+                setError("Impossible de modifier ce délai.");
+              }
+            }}
+          >
+            <option value={1}>1 minute</option>
+            <option value={5}>5 minutes</option>
+            <option value={15}>15 minutes</option>
+          </select>
+        </label>
+        <p className="field-help">
+          En arrière-plan, l’espace se verrouille après 30 secondes. Le retour
+          d’une autorisation Google dispose d’un délai limité à cinq minutes. La
+          fermeture ou le rechargement verrouille immédiatement.
+        </p>
+        <button className="button secondary" onClick={() => db.lock()}>
+          Verrouiller maintenant
+        </button>
+      </section>
       <section className="settings-section">
         <h3>Cotisations estimées</h3>
         <p>
@@ -255,6 +314,7 @@ export function Settings({
             onClick={() => {
               closeSecretForm();
               resetMessages();
+              setExportRecovery(false);
               setMode("export");
             }}
           >
@@ -283,6 +343,20 @@ export function Settings({
             <Upload size={17} />
           </button>
         </div>
+        {recovery && (
+          <button
+            className="button secondary"
+            disabled={busy}
+            onClick={() => {
+              closeSecretForm();
+              resetMessages();
+              setExportRecovery(true);
+              setMode("export");
+            }}
+          >
+            Exporter la copie de sécurité de migration
+          </button>
+        )}
         {mode && (
           <form
             className="secret-form"
@@ -416,10 +490,11 @@ export function Settings({
       <div className="info-box">
         <HardDrive size={19} />
         <p>
-          Le stockage local n’est pas un coffre-fort chiffré par cette
-          application. Protégez votre iPhone et Safari. La phrase de sauvegarde
-          n’est jamais conservée par l’application ; les données ne sont pas
-          synchronisées.
+          Les données persistantes sont chiffrées avant écriture. Les clés
+          restent en mémoire pendant le déverrouillage. Protégez aussi votre
+          iPhone et Safari : le chiffrement ne protège pas d’un script
+          malveillant actif pendant une session ouverte. Les phrases secrètes ne
+          sont jamais conservées par l’application.
         </p>
       </div>
       <section className="settings-section install-help">

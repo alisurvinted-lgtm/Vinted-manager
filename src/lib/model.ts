@@ -1,3 +1,4 @@
+import { parisDate } from "../../protocols/paris";
 export const GENRES = ["Homme", "Femme", "Enfant", "Unisexe"] as const;
 export const CATEGORIES = [
   "Sweat / Hoodie",
@@ -26,6 +27,20 @@ export interface Fee {
   type: (typeof FEE_TYPES)[number];
   amount: number;
 }
+export interface PendingSale {
+  price: number | null;
+  date: string;
+  dateEstimated: boolean;
+  referenceKey: string | null;
+}
+export interface Refund {
+  id: string;
+  amount: number;
+  date: string;
+  dateEstimated: boolean;
+  kind: "sale" | "purchase";
+  returnedStockId?: string;
+}
 export interface Article {
   id: string;
   name: string;
@@ -39,6 +54,26 @@ export interface Article {
   fees: Fee[];
   createdAt: string;
   updatedAt: string;
+  archived?: boolean;
+  purchaseAlreadyCounted?: boolean;
+  restockedFrom?: string;
+  purchaseDateEstimated?: boolean;
+  saleDateEstimated?: boolean;
+  purchaseReference?: string | null;
+  saleReference?: string | null;
+  announcedSaleDate?: string | null;
+  announcedSalePrice?: number | null;
+  cancellationDate?: string | null;
+  pendingSale?: PendingSale;
+  quantity?: number | null;
+  bundleItems?: { name: string; cost: number | null }[];
+  acquisition?: {
+    itemPrice: number | null;
+    shipping: number | null;
+    protection: number | null;
+    otherFees: number | null;
+  };
+  refunds?: Refund[];
 }
 export type ArticleInput = Omit<Article, "id" | "createdAt" | "updatedAt">;
 export type ActivityType =
@@ -55,13 +90,19 @@ export interface Settings {
   id: "preferences";
   rateBps: number;
   lastExportAt?: string;
+  autoLockMinutes?: 1 | 5 | 15;
+  gmailProgress?: {
+    period: string;
+    pageToken: string | null;
+    complete: boolean;
+    updatedAt: string;
+  }[];
 }
 export const defaultSettings: Settings = {
   id: "preferences",
   rateBps: DEFAULT_RATE,
 };
 export function today() {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return parisDate();
 }
 export const currentMonth = () => today().slice(0, 7);

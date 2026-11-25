@@ -1,5 +1,6 @@
 import { CATEGORIES, GENRES, MAX_CENTS, type Article } from "../src/lib/model";
 import { validDate } from "../src/lib/validation";
+export { validDate };
 export const GMAIL_FRAME_URL =
   "https://alisurvinted-lgtm.github.io/Vinted-manager/gmail-prototype/";
 export const KINDS = [
@@ -7,6 +8,7 @@ export const KINDS = [
   "sale_announced",
   "sale_final",
   "purchase",
+  "purchase_final",
   "cancellation",
   "refund",
 ] as const;
@@ -24,6 +26,20 @@ export interface VerifiedNotification {
   cleaning: number;
   genre: Article["genre"];
   category: Article["category"];
+  referenceKey?: string | null;
+  relatedKeys?: Partial<Record<ImportKind, string>>;
+  dateEstimated?: boolean;
+  confidence?: "reliable" | "incomplete" | "ambiguous";
+  confirmed?: boolean;
+  detectedKind?: ImportKind;
+  quantity?: number | null;
+  itemNames?: string[];
+  acquisition?: {
+    itemPrice: number | null;
+    shipping: number | null;
+    protection: number | null;
+    otherFees: number | null;
+  };
 }
 export interface ImportRecord {
   id: string;
@@ -35,13 +51,22 @@ export interface ImportRecord {
   articleId: string | null;
   resolved: boolean;
   recordedAt: string;
+  referenceKey?: string | null;
+  dateEstimated?: boolean;
+  disposition?: "recorded" | "review" | "ignored";
+  proposal?: VerifiedNotification;
+  parserVersion?: number;
 }
 export interface ImportChoice {
   item: VerifiedNotification;
-  mode: "create" | "sell" | "link" | "review";
+  mode:
+    "create" | "sell" | "link" | "review" | "announce" | "refund" | "cancel";
   articleId: string | null;
   expectedUpdatedAt: string | null;
   distinctConfirmed: boolean;
+  correctionRole?: "sale" | "purchase";
+  returnToStock?: boolean;
+  withdrawStock?: boolean;
 }
 const object = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
@@ -71,7 +96,23 @@ export function validateNotification(
 ): asserts v is VerifiedNotification {
   if (
     !object(v) ||
-    Object.keys(v).sort().join(",") !== keys ||
+    Object.keys(v)
+      .filter(
+        (k) =>
+          ![
+            "referenceKey",
+            "relatedKeys",
+            "dateEstimated",
+            "confidence",
+            "confirmed",
+            "detectedKind",
+            "quantity",
+            "itemNames",
+            "acquisition",
+          ].includes(k),
+      )
+      .sort()
+      .join(",") !== keys ||
     !isDigest(v.sourceKey) ||
     !isDigest(v.eventKey) ||
     !KINDS.includes(v.kind as ImportKind) ||
@@ -90,6 +131,50 @@ export function validateNotification(
     !CATEGORIES.includes(v.category as never)
   )
     throw new Error("La sélection contient une transaction invalide.");
+  if (
+    (v.referenceKey !== undefined &&
+      v.referenceKey !== null &&
+      !isDigest(v.referenceKey)) ||
+    (v.dateEstimated !== undefined && typeof v.dateEstimated !== "boolean") ||
+    (v.confidence !== undefined &&
+      !["reliable", "incomplete", "ambiguous"].includes(
+        v.confidence as string,
+      )) ||
+    (v.confirmed !== undefined && typeof v.confirmed !== "boolean") ||
+    (v.quantity !== undefined &&
+      v.quantity !== null &&
+      (!Number.isSafeInteger(v.quantity) ||
+        (v.quantity as number) < 1 ||
+        (v.quantity as number) > 100)) ||
+    (v.itemNames !== undefined &&
+      (!Array.isArray(v.itemNames) ||
+        v.itemNames.length > 100 ||
+        v.itemNames.some(
+          (n) => typeof n !== "string" || !n.trim() || n.length > 160,
+        )))
+  )
+    throw new Error("Les informations de rapprochement sont invalides.");
+  if (
+    v.detectedKind !== undefined &&
+    !KINDS.includes(v.detectedKind as ImportKind)
+  )
+    throw new Error("Type détecté invalide.");
+  if (
+    v.relatedKeys !== undefined &&
+    (!object(v.relatedKeys) ||
+      Object.entries(v.relatedKeys).some(
+        ([k, value]) => !KINDS.includes(k as ImportKind) || !isDigest(value),
+      ))
+  )
+    throw new Error("Références de rapprochement invalides.");
+  if (
+    v.acquisition !== undefined &&
+    (!object(v.acquisition) ||
+      Object.keys(v.acquisition).sort().join(",") !==
+        "itemPrice,otherFees,protection,shipping" ||
+      Object.values(v.acquisition).some((n) => n !== null && !cents(n)))
+  )
+    throw new Error("Détail du coût invalide.");
   if (v.kind === "sale_final" && (!validDate(v.date) || !cents(v.salePrice)))
     throw new Error(
       "Une vente finalisée exige un prix et une date de vente confirmés.",
@@ -125,7 +210,19 @@ export function validateImportRecord(v: unknown): asserts v is ImportRecord {
     .join(",");
   if (
     !object(v) ||
-    Object.keys(v).sort().join(",") !== expected ||
+    Object.keys(v)
+      .filter(
+        (k) =>
+          ![
+            "referenceKey",
+            "dateEstimated",
+            "disposition",
+            "proposal",
+            "parserVersion",
+          ].includes(k),
+      )
+      .sort()
+      .join(",") !== expected ||
     !isDigest(v.id) ||
     !isDigest(v.eventKey) ||
     !KINDS.includes(v.kind as ImportKind) ||
@@ -144,6 +241,20 @@ export function validateImportRecord(v: unknown): asserts v is ImportRecord {
     !Number.isFinite(Date.parse(v.recordedAt))
   )
     throw new Error("Le suivi des imports est invalide.");
+  if (
+    (v.referenceKey !== undefined &&
+      v.referenceKey !== null &&
+      !isDigest(v.referenceKey)) ||
+    (v.dateEstimated !== undefined && typeof v.dateEstimated !== "boolean") ||
+    (v.disposition !== undefined &&
+      !["recorded", "review", "ignored"].includes(v.disposition as string)) ||
+    (v.parserVersion !== undefined &&
+      (!Number.isSafeInteger(v.parserVersion) ||
+        (v.parserVersion as number) < 1 ||
+        (v.parserVersion as number) > 1000))
+  )
+    throw new Error("Métadonnées de suivi invalides.");
+  if (v.proposal !== undefined) validateNotification(v.proposal);
 }
 export async function digest(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);

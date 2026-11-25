@@ -40,6 +40,8 @@ for (const name of [
   "preview.ts",
   "PreviewPanel.tsx",
   "transfer.ts",
+  "analyze.ts",
+  "identifiers.ts",
 ]) {
   const code = await readFile(root + name, "utf8");
   assert(
