@@ -1,5 +1,52 @@
 # Validation de Vinted Manager
 
+## Phase 3 indépendante — rapprochement et doublons, non déployée
+
+Départ vérifié : `007bcc0e5ffb40be54074955a0455898579b0f81` sur `feature/phase2-filtrage-extraction`. Le travail de phase 3 est conservé sur `feature/phase3-rapprochement`, issue directement de ce commit. La branche de phase 2 et `main` restent inchangées ; aucun workflow de publication n'est lancé.
+
+Un seul fichier exécuté change : `src/lib/gmail-import.ts`. Les tests de `tests/automation.test.ts` sont enrichis ; ce document constitue le point de reprise. Aucun changement d'interface, de dépendance, d'OAuth, de protocole de transfert, de calcul de cotisations, de schéma IndexedDB v4 ou de format cryptographique/sauvegarde.
+
+- Références d'achat et de revente cloisonnées, y compris pour les anciennes clés d'étape. Une référence d'achat ne vend pas automatiquement ce bien. Les associations manuelles fiables conservent désormais la référence du côté concerné pour les synchronisations suivantes.
+- Titres normalisés (accents, espaces et ponctuation), montants et dates utilisés comme indices de vérification seulement, jamais comme preuve suffisante. Deux achats portant le même titre, prix et date mais des références d'achat distinctes restent deux acquisitions. Deux articles partageant une référence exigent une vérification.
+- Rapprochement recalculé au moment de l'écriture transactionnelle, pour les notifications du même lot et les aperçus devenus anciens. Les dépendances achat / annonce / encaissement sont traitées avant les corrections, sans changer leurs dates comptables. Une annonce et sa finalisation produisent une seule vente, même entre deux mois ou années et dans l'ordre de réception inverse.
+- Détection par source, événement ou référence de la même étape. Les alias de notification sont conservés dans le suivi chiffré et restaurés par la sauvegarde v3 existante. Une copie de l'événement d'origine n'écrase pas un nom, un coût, une date, un prix ou des frais corrigés manuellement. Des dates de réception estimées différentes ne créent pas une seconde vente ; deux dates explicites contradictoires nécessitent une vérification.
+- Coût absent toujours `null`, chiffre d'affaires confirmé conservé et bénéfice indéterminé. Un reçu retrouvé ultérieurement peut compléter un coût inconnu après association manuelle, sans créer un deuxième achat ni remplacer un coût connu.
+- Annulations et remboursements restent dans le parcours de confirmation dédié. Pas de retour automatique en attente après annulation, ni d'effacement d'un encaissement par une simple annulation. Les remboursements partiels distincts restent possibles, même avec une ancienne clé d'étape partagée ; une répétition montant/date doit être vérifiée ou explicitement confirmée distincte. Le rôle achat/vente ne peut pas contredire une référence non ambiguë. Un remboursement explicitement antérieur à la transaction est refusé.
+- Une correction non résolue liée à la transaction empêche sa validation automatique. Un article archivé ou une référence historique sans article disponible n'est pas recréé ou revendu automatiquement. Aucun corps Gmail brut, adresse ou jeton supplémentaire conservé.
+
+| Contrôle ciblé                                | Résultat exécuté                                                                                                                                 |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tests unitaires                               | **244 réussis**, 7 fichiers ; **37 nouveaux cas** dans la suite d'automatisation                                                                 |
+| Dont import / rapprochement / comptabilité    | **81 réussis**, `tests/gmail-import.test.ts` et `tests/automation.test.ts`                                                                       |
+| Non-régression analyse et lecture Gmail       | **118 réussis**                                                                                                                                  |
+| Non-régression coffre, sauvegarde et stockage | **45 réussis**                                                                                                                                   |
+| Parcours intégrés Gmail                       | **8 réussis**, 4 Chromium et 4 WebKit iPhone                                                                                                     |
+| TypeScript / builds                           | Application et lecteur compilés sous les chemins Pages existants                                                                                 |
+| Sources et artefacts                          | Vérifications des sources et du lecteur réussies ; 13 fichiers statiques comptables autorisés, aucun fichier de données comptables dans le build |
+
+Commandes exécutées :
+
+```bash
+npx vitest run tests/gmail-import.test.ts tests/automation.test.ts tests/gmail-analysis.test.ts tests/gmail-prototype/preview.test.ts tests/vault.test.ts tests/crypto-backup.test.ts tests/storage.test.ts
+npm run gmail:build
+PAGES_BASE_PATH=/Vinted-manager/ npm run build
+PAGES_BASE_PATH=/Vinted-manager/ npx playwright test e2e/gmail-import.spec.ts --workers=2
+npm run verify:source
+npm run gmail:verify
+```
+
+Les tests utilisent exclusivement des opérations synthétiques, une base isolée et des réponses Google simulées. Les tests navigateur gardent leur configuration existante : service worker bloqué uniquement dans ces tests d'interception Gmail, validation du cache système des bibliothèques désactivée dans cet environnement ; aucun test ignoré. La suite complète, les essais PWA séparés et le vrai compte Gmail n'ont pas été relancés dans cette phase. Aucun accès ni modification aux données de l'iPhone du propriétaire.
+
+Limites : le protocole actuel ne fournit pas d'identifiant d'article Vinted distinct et vérifié ni de champs marque/taille structurés ; ces éléments du titre restent des indices manuels. Sans référence commune, achat et revente ne sont pas fusionnés automatiquement. Les corrections financières ambiguës, les lots et les références manquantes restent à confirmer. Une ancienne sauvegarde dépourvue de suivi ne permet pas de reconstituer les identifiants perdus. La compatibilité du nouveau rapprochement sur l'iPhone physique et ses véritables modèles de messages reste à vérifier lors de la validation finale.
+
+### Point de reprise pour la phase 4
+
+Partir du commit de fin de phase 3 sur `feature/phase3-rapprochement` (hash indiqué dans le bilan), descendant de `007bcc0`, sans revenir à `main`. Réutiliser `reconcile`, `possibleMatches` et les écritures atomiques de `importVerified` ; le suivi `imports` reste dans le coffre et dans les sauvegardes v3. Les champs d'achat inconnus restent `null` et les références d'achat/revente restent séparées.
+
+La phase 4 pourra examiner `src/components/GmailImport.tsx` et les composants du tableau de bord, avec `src/lib/accounting.ts` et les tests associés, pour simplifier les gestes et la présentation sans modifier le chiffrement, les données existantes ou les règles de rapprochement. Conserver les quatre indicateurs iPhone et distinguer attente, encaissement et bénéfice incomplet. Ne pas lancer la phase 5 ou un déploiement intermédiaire automatiquement.
+
+---
+
 ## Phase 2 indépendante — filtrage et extraction Gmail, non déployée
 
 Base : `4045eeba6f082fd8facf56c0c76702382ccfbf29`. Branche de travail : `feature/phase2-filtrage-extraction`. Cette section décrit des changements préparés sur la branche dédiée, pas la version actuellement en ligne. Aucune modification de `main` ni aucun déploiement demandé pour cette phase.

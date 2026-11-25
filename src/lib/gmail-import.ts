@@ -11,14 +11,51 @@ import {
 } from "../../protocols/gmail-transfer";
 export const financial = (kind: VerifiedNotification["kind"]) =>
   kind === "purchase" || kind === "sale_announced" || kind === "sale_final";
+const side = (kind: VerifiedNotification["kind"]) =>
+  kind === "purchase" || kind === "purchase_final"
+    ? "purchase"
+    : kind === "sale_announced" || kind === "sale_final"
+      ? "sale"
+      : null;
+const normalizedName = (name: string) =>
+  name
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLocaleLowerCase("fr")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+const amount = (item: VerifiedNotification) =>
+  item.kind === "purchase" ? item.purchasePrice : item.salePrice;
+const correction = (kind: VerifiedNotification["kind"]) =>
+  kind === "refund" || kind === "cancellation";
+function sameReference(item: VerifiedNotification, record: ImportRecord) {
+  return (
+    (!!item.referenceKey && item.referenceKey === record.referenceKey) ||
+    item.relatedKeys?.[record.kind] === record.eventKey
+  );
+}
+// Une référence de commande d'achat ne prouve jamais une transaction de revente.
+function sharesReference(item: VerifiedNotification, record: ImportRecord) {
+  return (
+    (side(item.kind) === null || side(item.kind) === side(record.kind)) &&
+    sameReference(item, record)
+  );
+}
+function references(item: VerifiedNotification, a: Article) {
+  return side(item.kind) === "purchase"
+    ? [a.purchaseReference]
+    : side(item.kind) === "sale"
+      ? [a.saleReference, a.pendingSale?.referenceKey]
+      : [a.purchaseReference, a.saleReference, a.pendingSale?.referenceKey];
+}
 export function possibleMatches(
   item: VerifiedNotification,
   articles: Article[],
 ) {
-  const name = item.name.trim().normalize("NFKC").toLocaleLowerCase("fr");
+  const name = normalizedName(item.name);
   return articles.filter(
     (a) =>
-      a.name.trim().normalize("NFKC").toLocaleLowerCase("fr") === name ||
+      normalizedName(a.name) === name ||
       (item.kind === "sale_final" &&
         a.status === "sold" &&
         a.saleDate === item.date &&
@@ -119,13 +156,15 @@ export async function importVerified(
       disposition: "recorded" | "review" | "ignored",
       eventKey = item.eventKey,
     ) {
+      const owner = await tx.imports.where("eventKey").equals(eventKey).first();
+      if (owner && owner.id !== item.sourceKey) eventKey = item.sourceKey;
       const r: ImportRecord = {
         id: item.sourceKey,
         eventKey,
         kind: item.kind,
         name: item.name,
         date: item.date,
-        amount: item.kind === "purchase" ? item.purchasePrice : item.salePrice,
+        amount: amount(item),
         articleId: article?.id ?? null,
         resolved: disposition !== "review",
         recordedAt: new Date().toISOString(),
@@ -142,7 +181,6 @@ export async function importVerified(
     const initialVersions = new Map(
       (await tx.articles.toArray()).map((a) => [a.id, a.updatedAt]),
     );
-    const batchArticles = new Set<string>();
     const priority = (kind: VerifiedNotification["kind"]) =>
       kind === "purchase"
         ? 0
@@ -155,34 +193,13 @@ export async function importVerified(
       .map((_, index) => index)
       .sort(
         (a, b) =>
-          (items[a].date ?? "9999").localeCompare(items[b].date ?? "9999") ||
           priority(items[a].kind) - priority(items[b].kind) ||
+          (items[a].date ?? "9999").localeCompare(items[b].date ?? "9999") ||
           a - b,
       );
     for (const index of order) {
       const item = items[index];
       let c = choices[index];
-      // Un même lot peut contenir la finalisation et l’annonce, dans n’importe quel ordre.
-      // Seule une référence commune fiable autorise ce rapprochement interne au lot.
-      if (c.mode === "create" && !c.distinctConfirmed && item.referenceKey) {
-        const matched = reconcile(
-          item,
-          await tx.articles.toArray(),
-          await tx.imports.toArray(),
-        );
-        if (matched.article && batchArticles.has(matched.article.id)) {
-          if (!matched.reliable)
-            throw new Error(
-              "Les notifications d’une même transaction se contredisent. Vérifiez-les avant validation groupée.",
-            );
-          c = {
-            ...c,
-            mode: matched.mode,
-            articleId: matched.article.id,
-            expectedUpdatedAt: matched.article.updatedAt,
-          };
-        }
-      }
       const bySource = await tx.imports.get(item.sourceKey);
       const byEvent = await tx.imports
         .where("eventKey")
@@ -192,20 +209,51 @@ export async function importVerified(
         duplicates++;
         continue;
       }
-      if (byEvent?.resolved && byEvent.id !== item.sourceKey) {
+      const records = await tx.imports.toArray();
+      // Les anciennes versions ont parfois utilisé la source comme clé d'événement.
+      // Garder les alias dans le suivi permet le même contrôle après restauration.
+      const sameStage = records.filter(
+        (r) =>
+          r.resolved &&
+          r.articleId &&
+          r.kind === item.kind &&
+          sharesReference(item, r),
+      );
+      const previous = byEvent?.resolved ? byEvent : sameStage[0];
+      if (
+        previous &&
+        previous.id !== item.sourceKey &&
+        !["refund", "cancellation"].includes(item.kind)
+      ) {
+        const existing = previous.articleId
+          ? await tx.articles.get(previous.articleId)
+          : undefined;
+        const agreesWithCurrent =
+          existing &&
+          c.articleId === existing.id &&
+          (item.kind === "purchase"
+            ? existing.purchasePrice === item.purchasePrice &&
+              (item.dateEstimated || existing.purchaseDate === item.date)
+            : item.kind === "sale_announced"
+              ? existing.pendingSale?.price === item.salePrice &&
+                (item.dateEstimated || existing.pendingSale.date === item.date)
+              : item.kind === "sale_final" &&
+                existing.status === "sold" &&
+                existing.salePrice === item.salePrice &&
+                (item.dateEstimated || existing.saleDate === item.date));
         if (
-          (byEvent.name !== item.name &&
-            (c.articleId === null || c.articleId !== byEvent.articleId)) ||
-          byEvent.date !== item.date ||
-          byEvent.amount !==
-            (item.kind === "purchase" ? item.purchasePrice : item.salePrice)
+          previous.kind !== item.kind ||
+          (!agreesWithCurrent &&
+            ((normalizedName(previous.name) !== normalizedName(item.name) &&
+              (c.articleId === null || c.articleId !== previous.articleId)) ||
+              (!item.dateEstimated &&
+                !previous.dateEstimated &&
+                previous.date !== item.date) ||
+              previous.amount !== amount(item)))
         )
           throw new Error(
             "Une même référence présente des articles ou montants différents. Vérifiez ce cas ou ce lot manuellement.",
           );
-        const existing = byEvent.articleId
-          ? await tx.articles.get(byEvent.articleId)
-          : undefined;
         await record(item, existing, "ignored", item.sourceKey);
         duplicates++;
         continue;
@@ -217,6 +265,35 @@ export async function importVerified(
         await record(item, undefined, "review");
         review++;
         continue;
+      }
+      // Refaire le rapprochement dans la transaction protège aussi les aperçus périmés.
+      // Les noms seuls restent des propositions manuelles, même dans un même lot.
+      if (c.mode === "create") {
+        const articles = await tx.articles.toArray();
+        const matched = reconcile(item, articles, records);
+        const knownReference =
+          (!!item.referenceKey &&
+            articles.some((a) =>
+              references(item, a).includes(item.referenceKey),
+            )) ||
+          records.some(
+            (r) =>
+              r.id !== item.sourceKey &&
+              (((!!r.articleId || r.resolved) && sharesReference(item, r)) ||
+                (correction(r.kind) && !r.resolved && sameReference(item, r))),
+          );
+        if (knownReference) {
+          if (!matched.reliable || !matched.article)
+            throw new Error(
+              "Les notifications d’une même transaction se contredisent. Vérifiez-les avant validation groupée.",
+            );
+          c = {
+            ...c,
+            mode: matched.mode,
+            articleId: matched.article.id,
+            expectedUpdatedAt: matched.article.updatedAt,
+          };
+        }
       }
       if (item.confirmed === false)
         throw new Error(
@@ -304,7 +381,6 @@ export async function importVerified(
         };
         changed = true;
         created++;
-        batchArticles.add(a.id);
       } else {
         if (!c.articleId) throw new Error("Choisissez l’article concerné.");
         a = await tx.articles.get(c.articleId);
@@ -315,6 +391,18 @@ export async function importVerified(
         )
           throw new Error(
             "L’article a changé dans une autre fenêtre. Recommencez la vérification pour préserver les corrections.",
+          );
+        if (
+          side(item.kind) &&
+          item.referenceKey &&
+          references(item, a).some((ref) => ref && ref !== item.referenceKey)
+        )
+          throw new Error(
+            "Cet article porte une autre référence pour cette opération. Vérifiez la correspondance sans remplacer son suivi.",
+          );
+        if (a.archived && ["sell", "announce"].includes(c.mode))
+          throw new Error(
+            "Cet article est archivé. Choisissez le bien encore en stock.",
           );
         if (c.mode === "link") {
           if (
@@ -361,6 +449,19 @@ export async function importVerified(
           }
           if (!["purchase", "sale_final", "purchase_final"].includes(item.kind))
             throw new Error("Ce type exige une vérification dédiée.");
+          if (
+            item.referenceKey &&
+            !references(item, a).includes(item.referenceKey)
+          ) {
+            a = {
+              ...a,
+              ...(side(item.kind) === "purchase"
+                ? { purchaseReference: item.referenceKey }
+                : { saleReference: item.referenceKey }),
+              updatedAt: now,
+            };
+            changed = true;
+          }
         } else if (c.mode === "announce") {
           if (
             item.kind !== "sale_announced" ||
@@ -378,7 +479,7 @@ export async function importVerified(
             );
           a = {
             ...a,
-            ...(a.status === "stock"
+            ...(a.status === "stock" && !a.cancellationDate && !a.pendingSale
               ? {
                   pendingSale: {
                     price: item.salePrice,
@@ -429,25 +530,46 @@ export async function importVerified(
             throw new Error(
               "Cette vente a déjà été encaissée. Vérifiez et enregistrez le remboursement effectif, sans effacer l’encaissement.",
             );
+          if (
+            item.referenceKey &&
+            item.referenceKey === a.purchaseReference &&
+            item.referenceKey !== a.saleReference &&
+            item.referenceKey !== a.pendingSale?.referenceKey
+          )
+            throw new Error(
+              "Cette annulation concerne l’achat. Vérifiez son remboursement et le retour du bien sans annuler une revente différente.",
+            );
           const { pendingSale, ...rest } = a;
           void pendingSale;
-          a = { ...rest, cancellationDate: item.date, updatedAt: now };
+          a = {
+            ...rest,
+            cancellationDate: a.cancellationDate ?? item.date,
+            updatedAt: now,
+          };
           changed = true;
         } else if (c.mode === "refund") {
           if (item.kind !== "refund" || item.salePrice === null || !item.date)
             throw new Error("Le remboursement exige un montant et une date.");
+          const purchaseRef =
+            !!item.referenceKey && item.referenceKey === a.purchaseReference;
+          const saleRef =
+            !!item.referenceKey &&
+            (item.referenceKey === a.saleReference ||
+              item.referenceKey === a.pendingSale?.referenceKey);
           const inferred =
-            item.referenceKey && item.referenceKey === a.purchaseReference
-              ? "purchase"
-              : item.referenceKey &&
-                  (item.referenceKey === a.saleReference ||
-                    item.referenceKey === a.pendingSale?.referenceKey)
-                ? "sale"
-                : undefined;
+            purchaseRef !== saleRef
+              ? purchaseRef
+                ? "purchase"
+                : "sale"
+              : undefined;
           const role = c.correctionRole ?? inferred;
           if (!role)
             throw new Error(
               "Précisez si le remboursement concerne un achat ou une vente.",
+            );
+          if (inferred && role !== inferred)
+            throw new Error(
+              "Le rôle choisi contredit la référence d’achat ou de vente. Vérifiez cette correction.",
             );
           const prior = (a.refunds ?? [])
             .filter((r) => r.kind === role)
@@ -455,6 +577,18 @@ export async function importVerified(
           const limit = role === "sale" ? a.salePrice : a.purchasePrice;
           if (role === "sale" && a.status !== "sold")
             throw new Error("Aucun encaissement de vente à rembourser.");
+          const originalDate = role === "sale" ? a.saleDate : a.purchaseDate;
+          const originalEstimated =
+            role === "sale" ? a.saleDateEstimated : a.purchaseDateEstimated;
+          if (
+            originalDate &&
+            !originalEstimated &&
+            !item.dateEstimated &&
+            item.date < originalDate
+          )
+            throw new Error(
+              "Le remboursement précède la transaction. Vérifiez les dates avant enregistrement.",
+            );
           if (limit !== null && prior + item.salePrice > limit)
             throw new Error(
               "Le remboursement dépasse le montant encore remboursable.",
@@ -625,11 +759,18 @@ export function reconcile(
       reliable: true,
       reason: "Notification déjà enregistrée",
     };
-  const keys = Object.values(item.relatedKeys ?? {});
   const related = records.filter(
     (r) =>
-      (item.referenceKey && r.referenceKey === item.referenceKey) ||
-      keys.includes(r.eventKey),
+      r.id !== item.sourceKey &&
+      (!!r.articleId || r.resolved) &&
+      sharesReference(item, r),
+  );
+  const correctionPending = records.some(
+    (r) =>
+      r.id !== item.sourceKey &&
+      !r.resolved &&
+      correction(r.kind) &&
+      sameReference(item, r),
   );
   const ids = [
     ...new Set(
@@ -638,11 +779,7 @@ export function reconcile(
   ];
   const direct = articles.filter(
     (a) =>
-      item.referenceKey &&
-      (a.saleReference === item.referenceKey ||
-        a.pendingSale?.referenceKey === item.referenceKey ||
-        ((item.kind === "purchase" || item.kind === "purchase_final") &&
-          a.purchaseReference === item.referenceKey)),
+      !!item.referenceKey && references(item, a).includes(item.referenceKey),
   );
   const strong = [
     ...new Map(
@@ -664,35 +801,98 @@ export function reconcile(
             : "link";
   if (strong.length === 1) {
     const a = strong[0];
+    const purchase = side(item.kind) === "purchase";
+    const sale = side(item.kind) === "sale";
+    const priorStage = related.find(
+      (r) =>
+        r.resolved &&
+        r.articleId === a.id &&
+        r.kind === item.kind &&
+        r.amount === amount(item) &&
+        (normalizedName(r.name) === normalizedName(item.name) ||
+          item.name === "Nom à compléter") &&
+        (r.date === item.date || item.dateEstimated || r.dateEstimated),
+    );
+    // Une nouvelle copie du même événement ne réapplique jamais ses anciens champs
+    // par-dessus les corrections manuelles faites depuis le premier import.
+    if (priorStage && financial(item.kind))
+      return {
+        mode: "link",
+        article: a,
+        reliable: true,
+        reason: "Opération déjà enregistrée : corrections conservées",
+      };
     const difference =
-      (["sale_final", "sale_announced"].includes(item.kind) &&
+      (side(item.kind) !== null &&
+        !!item.referenceKey &&
+        references(item, a).some((ref) => ref && ref !== item.referenceKey)) ||
+      (sale &&
         !!a.purchaseDate &&
         !!item.date &&
+        !a.purchaseDateEstimated &&
+        !item.dateEstimated &&
         item.date < a.purchaseDate) ||
       (item.kind === "sale_announced" &&
-        a.status === "sold" &&
-        a.salePrice !== item.salePrice) ||
+        ((a.status === "sold" &&
+          (a.salePrice !== item.salePrice ||
+            (!a.saleDateEstimated &&
+              !item.dateEstimated &&
+              !!item.date &&
+              !!a.saleDate &&
+              item.date > a.saleDate))) ||
+          (a.pendingSale &&
+            (a.pendingSale.price !== item.salePrice ||
+              (!a.pendingSale.dateEstimated &&
+                !item.dateEstimated &&
+                a.pendingSale.date !== item.date))))) ||
       (item.kind === "sale_final" &&
         ((a.pendingSale?.price !== undefined &&
           a.pendingSale.price !== null &&
           a.pendingSale.price !== item.salePrice) ||
+          (a.pendingSale &&
+            !a.pendingSale.dateEstimated &&
+            !item.dateEstimated &&
+            !!item.date &&
+            item.date < a.pendingSale.date) ||
           (a.status === "sold" &&
             (a.salePrice !== item.salePrice ||
               (!item.dateEstimated && a.saleDate !== item.date))))) ||
       (item.kind === "purchase" &&
-        a.purchasePrice !== null &&
-        item.purchasePrice !== null &&
-        a.purchasePrice !== item.purchasePrice);
+        ((a.purchasePrice !== null &&
+          item.purchasePrice !== null &&
+          a.purchasePrice !== item.purchasePrice) ||
+          (a.purchaseDate !== null &&
+            item.date !== null &&
+            !item.dateEstimated &&
+            a.purchaseDate !== item.date) ||
+          (a.saleDate !== null &&
+            item.date !== null &&
+            !item.dateEstimated &&
+            !a.saleDateEstimated &&
+            item.date > a.saleDate)));
+    const blocked =
+      (sale && (!!a.archived || !!a.cancellationDate)) ||
+      (item.kind === "cancellation" &&
+        !!a.purchaseReference &&
+        a.purchaseReference === item.referenceKey &&
+        a.saleReference !== item.referenceKey &&
+        a.pendingSale?.referenceKey !== item.referenceKey) ||
+      (!purchase && !sale) ||
+      correctionPending;
     return {
       mode: modeFor(a),
       article: a,
       reliable:
         !difference &&
+        !blocked &&
+        item.kind !== "incomplete" &&
         item.confirmed !== false &&
         item.confidence !== "ambiguous",
       reason: difference
         ? "Montant ou date différent : vos corrections doivent être vérifiées"
-        : "Même référence de transaction",
+        : blocked
+          ? "Annulation, remboursement ou article archivé : vérification nécessaire"
+          : "Même référence de transaction d’achat ou de vente",
     };
   }
   if (strong.length > 1)
@@ -702,9 +902,26 @@ export function reconcile(
       reliable: false,
       reason: "Plusieurs articles partagent la référence",
     };
-  const named = possibleMatches(item, articles);
+  if (related.length || correctionPending)
+    return {
+      mode: "review",
+      article: undefined,
+      reliable: false,
+      reason:
+        "Référence déjà connue, sans article unique disponible : vérifiez le suivi",
+    };
+  const named = possibleMatches(item, articles).filter(
+    (a) =>
+      !(
+        item.kind === "purchase" &&
+        item.referenceKey &&
+        a.purchaseReference &&
+        a.purchaseReference !== item.referenceKey
+      ),
+  );
   const exact = named.filter(
     (a) =>
+      normalizedName(a.name) === normalizedName(item.name) &&
       !item.dateEstimated &&
       (item.kind === "purchase"
         ? a.purchasePrice === item.purchasePrice && a.purchaseDate === item.date
@@ -737,7 +954,10 @@ export function reconcile(
   return {
     mode: "create",
     article: undefined,
-    reliable: item.confidence === "reliable",
+    reliable:
+      item.confidence === "reliable" &&
+      item.confirmed !== false &&
+      financial(item.kind),
     reason: "Nouvelle opération proposée",
   };
 }
