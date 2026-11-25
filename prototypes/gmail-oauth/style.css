@@ -94,3 +94,131 @@ input:focus-visible {
   outline: 3px solid #7ea277;
   outline-offset: 3px;
 }
+
+.search-preview,
+.preview-panel {
+  margin-top: 30px;
+  border-top: 1px solid #e0e6df;
+  padding-top: 22px;
+}
+h2 {
+  font-size: 21px;
+  line-height: 1.35;
+}
+h3 {
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.search-preview label,
+.notification-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  margin: 14px 0;
+}
+.search-preview input,
+.notification-card input,
+.notification-card select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid #cad9ca;
+  border-radius: 9px;
+  padding: 10px;
+  background: white;
+  color: #202922;
+  font: inherit;
+  font-size: 16px;
+}
+.search-preview > button {
+  width: 100%;
+}
+.notification-card {
+  border: 1px solid #dce6d7;
+  border-radius: 14px;
+  padding: 16px;
+  margin: 18px 0;
+}
+.preview-note,
+.mail-date {
+  font-size: 13px;
+  color: #59675b;
+}
+.suggestion {
+  font-size: 14px;
+  font-weight: 600;
+  color: #176453;
+}
+.preview-warning,
+.missing-profit {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #80542d;
+  background: #fff7e8;
+  padding: 10px;
+  border-radius: 7px;
+}
+.preview-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+.notification-card fieldset {
+  border: 0;
+  padding: 0;
+  margin-top: 20px;
+  min-width: 0;
+}
+.notification-card legend {
+  font-size: 14px;
+  font-weight: 600;
+}
+.notification-card label.review-check {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+}
+.review-check input {
+  width: 22px;
+  min-height: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.mail-text {
+  font: inherit;
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #f5f7f3;
+  padding: 12px;
+  border-radius: 8px;
+  max-height: 280px;
+  overflow: auto;
+}
+.amounts {
+  font-size: 13px;
+  margin: 16px 0;
+}
+.amounts ul {
+  padding-left: 18px;
+}
+.amounts li {
+  margin: 10px 0;
+}
+.amounts span {
+  display: block;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: #176453;
+  text-decoration: underline;
+}
+small {
+  font-size: 12px;
+}

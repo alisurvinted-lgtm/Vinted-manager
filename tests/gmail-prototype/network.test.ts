@@ -61,7 +61,7 @@ describe("Vérification Gmail sans consulter de message", () => {
     );
     await expect(
       checkAccess(token, new AbortController().signal),
-    ).rejects.toThrow("Accès Gmail non confirmé.");
+    ).rejects.toThrow("Lecture Gmail interrompue.");
     expect(read).not.toHaveBeenCalled();
   });
 });

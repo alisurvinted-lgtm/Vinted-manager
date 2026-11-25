@@ -1,4 +1,28 @@
-# Validation de Vinted Manager V2
+# Validation de Vinted Manager
+
+## Livraison du 25 novembre 2026 — aperçu Gmail phase 2
+
+Périmètre approuvé : recherche manuelle et aperçu corrigible, uniquement en mémoire. Aucun import comptable, aucune migration ou écriture en base. Les fichiers `src/`, `public/`, le schéma IndexedDB et les modules de sauvegarde/chiffrement sont identiques à la phase 1 publiée. Le JS comptable reste `index-CaOfr5xX.js` et son CSS `index-jVtMB30o.css`.
+
+| Contrôle                                     | Résultat exécuté                                                                                                |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Tests unitaires                              | **178 réussis**, neuf fichiers                                                                                  |
+| Tests navigateur comptables                  | **24 réussis**, douze Chromium et douze WebKit iPhone                                                           |
+| Tests navigateur Gmail simulés               | **10 réussis**, cinq Chromium et cinq WebKit iPhone                                                             |
+| TypeScript / builds application et prototype | Réussis sous `/Vinted-manager/` et `/Vinted-manager/gmail-prototype/`                                           |
+| Sélection source et artefact                 | 76 sources autorisées ; 13 fichiers statiques comptables et quatre de prototype ; aucun fichier local comptable |
+| Audit npm complet et production              | **0 signalement** dans les deux audits du 25 novembre                                                           |
+| Formatage                                    | Vérifié avec Prettier                                                                                           |
+
+Les tests Gmail emploient exclusivement des notifications synthétiques et un fournisseur OAuth simulé. Ils vérifient la sélection stricte des expéditeurs, les cas d’authentification absente/ambiguë, le refus de lire les corps personnels ou non reconnus, la lecture bornée, le décodage MIME/en-têtes, le HTML rendu inerte sans requête d’image, les erreurs et expirations, les réponses tardives, les doublons et références communes. Les bornes de mois utilisent le fuseau local et des secondes Unix, y compris changement d’année et d’heure.
+
+Le parcours navigateur de phase 2 conserve un article synthétique et sa version de base existante à l’identique après lecture, correction, révocation et rechargement. Les coûts et dates absents restent vides, les corrections du premier lot sont conservées en chargeant la suite, puis effacées à la révocation. Aucun message ou jeton n’apparaît dans le stockage Web et aucun contenu synthétique n’est envoyé dans les URL ou corps de requêtes. Les tests comptables couvrent toujours la sauvegarde AES-256-GCM, le refus des mauvaises phrases/altérations, la restauration, la persistance après fermeture complète et le hors ligne.
+
+Le propriétaire a confirmé sur son iPhone la connexion Safari/PWA et la révocation de **phase 1**. L’agent n’a lu aucun e-mail réel. Les modèles réels de notifications, leur couverture et leur sens comptable ne sont pas déclarés validés. Le prototype ne peut pas déterminer automatiquement une vente définitive ni dédupliquer avec la comptabilité existante dans cette phase. Les limites de confidentialité et d’origine partagée sont documentées dans [le rapport du prototype](./prototypes/gmail-oauth/README.md).
+
+Le résultat du déploiement doit être vérifié sur le workflow du commit puis en HTTPS. Les résultats locaux ne suffisent pas à déclarer une publication. Le compte rendu de livraison indique le résultat effectivement observé.
+
+## Historique — validation V2 du 16 novembre 2026
 
 Contrôles exécutés le **16 novembre 2026**, sous Linux Codex avec Node.js **24.22.1**.
 

@@ -1,3 +1,4 @@
+import { gmailRead, record } from "./gmail-api";
 import type { GoogleAuthorization } from "./session";
 export const GOOGLE_LIBRARY = "https://accounts.google.com/gsi/client";
 export const GMAIL_PROBE_URL =
@@ -43,64 +44,23 @@ export function loadGoogle(): Promise<GoogleAuthorization> {
   });
   return loading;
 }
-// Un seul point d’accès fixe, sans adresse personnelle, liste de messages, corps ou pièce jointe.
+// Ce contrôle conserve le périmètre de la phase 1 : aucun message demandé.
 export async function checkAccess(
   token: string,
   signal: AbortSignal,
 ): Promise<void> {
-  const response = await fetch(GMAIL_PROBE_URL, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
-    credentials: "omit",
-    cache: "no-store",
-    redirect: "error",
-    referrerPolicy: "no-referrer",
+  const profile = await gmailRead(
+    "profile",
+    new URLSearchParams({ fields: "historyId" }),
+    token,
     signal,
-  });
+    1024,
+  );
   if (
-    !response.ok ||
-    !response.headers.get("content-type")?.includes("application/json")
+    !record(profile) ||
+    Object.keys(profile).join() !== "historyId" ||
+    typeof profile.historyId !== "string" ||
+    !/^\d{1,30}$/.test(profile.historyId)
   )
-    throw new Error("Accès Gmail non confirmé.");
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error("Accès Gmail non confirmé.");
-  const parts: Uint8Array[] = [];
-  let bytes = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      bytes += value.byteLength;
-      if (bytes > 1024) throw new Error("Réponse Gmail invalide.");
-      parts.push(value);
-    }
-  } finally {
-    await reader.cancel();
-    reader.releaseLock();
-  }
-  const buffer = new Uint8Array(bytes);
-  let offset = 0;
-  for (const part of parts) {
-    buffer.set(part, offset);
-    offset += part.byteLength;
-  }
-  try {
-    const profile: unknown = JSON.parse(
-      new TextDecoder("utf-8", { fatal: true }).decode(buffer),
-    );
-    if (
-      !profile ||
-      typeof profile !== "object" ||
-      Array.isArray(profile) ||
-      Object.keys(profile).join() !== "historyId" ||
-      typeof (profile as { historyId?: unknown }).historyId !== "string" ||
-      !/^\d{1,30}$/.test((profile as { historyId: string }).historyId)
-    )
-      throw new Error();
-  } catch {
     throw new Error("Réponse Gmail invalide.");
-  } finally {
-    buffer.fill(0);
-    for (const part of parts) part.fill(0);
-  }
 }

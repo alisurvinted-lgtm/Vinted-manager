@@ -105,7 +105,7 @@ La CSP est une défense supplémentaire ; elle ne garantit pas l’absence de fu
 - Contrôle fermé de `dist/` : seuls HTML, JS/CSS compilés, manifeste, worker et icônes connus sont publiables. Un fichier JSON comptable copié dans `public/` bloque la publication.
 - Aucun fichier de test n’est importé dans l’application. Les marqueurs de données synthétiques sont interdits dans le bundle.
 - `npm ci` et le lockfile fixent l’arbre de dépendances et leurs intégrités. Les actions GitHub officielles sont épinglées à des commits vérifiés ; les permissions d’écriture Pages sont limitées au job de déploiement (configuration en lecture seule).
-- Les jetons de checkout ne sont pas conservés dans la configuration Git. Aucun artefact de tests, capture, trace ou profil de navigateur n’est publié. Seul `dist/` est transféré à Pages.
+- Les jetons de checkout ne sont pas conservés dans la configuration Git. Aucun artefact de tests, capture, trace ou profil de navigateur n’est publié. Seul l’assemblage statique contrôlé `.pages-build/` (application et prototype séparé) est transféré à Pages.
 - Le workflow refuse les dépôts privés pour rester dans l’utilisation gratuite prévue. Aucun autre dépôt n’est créé et aucun service payant n’est ajouté.
 
 ### Audit des dépendances effectué le 15 novembre 2026
@@ -116,14 +116,18 @@ Après correction : **aucun signalement critique, élevé ou modéré**. L’aud
 
 Un audit npm dépend de la base d’avis connue au moment du contrôle. Un résultat sans signalement ne prouve pas l’absence de vulnérabilité.
 
+Nouvelle vérification le **25 novembre 2026** : les audits npm complet et `--omit=dev` retournent **zéro signalement**, sans ajout de dépendance pour les prototypes Gmail. Le résultat du 15 novembre ci-dessus est conservé comme historique et ne décrit pas le dernier audit.
+
 ## Vérifications
 
 Les tests utilisent exclusivement des données synthétiques et des bases/profils temporaires. Ils couvrent le chiffrement et une vérification indépendante par Node/OpenSSL, les mauvais secrets, les altérations, la restauration complète, les requêtes et journaux lors des parcours, la CSP, l’échappement HTML, le contenu du cache, les chemins Pages, le hors ligne et la fermeture complète du navigateur. Ils sont exécutés dans Chromium et WebKit au format iPhone.
 
 L’installation physique sur votre iPhone et les politiques propres à votre appareil ne sont pas vérifiables depuis cet environnement. Les résultats d’exécution et l’état du déploiement figurent dans [VALIDATION.md](./VALIDATION.md).
 
-## Page de test personnel Gmail (phase 1)
+## Page de test personnel Gmail (phases 1 et 2)
 
 Le prototype possède une page et une CSP propres, décrites dans [son rapport](./prototypes/gmail-oauth/README.md). Le 25 novembre 2026, le propriétaire a fourni son identifiant client public et confirmé le mode personnel et le scope de lecture seule. Aucun secret client n’est utilisé. Le code comptable et sa CSP réseau fermée ne chargent pas le SDK Google.
 
-Le test n’accède à aucune base et ne lit aucun message : après consentement, une action distincte peut vérifier uniquement un champ du profil Gmail. Le jeton n’existe qu’en mémoire. La méthode officielle de révocation contacte Google en POST ; une erreur n’est jamais présentée comme une réussite. Le SDK Google constitue un nouveau code de confiance sur la même origine, sans isolation cryptographique vis-à-vis d’IndexedDB ; les règles Google ne limitent pas le scope à Vinted. La configuration en mode personnel est attestée par le propriétaire et la validation physique Safari/PWA reste à réaliser.
+Le test n’accède à aucune base. La phase 2 autorisée séparément lit des notifications à la demande, dans un aperçu temporaire sans import, écriture ou transmission à un analyseur externe. Les corps personnels, expéditeurs non retenus, objets non reconnus ou résultats d’authentification douteux ne sont pas chargés. La lecture est bornée, les messages sont affichés comme du texte et les pièces jointes ne sont pas exécutées. Les prix et dates inconnus restent inconnus. Les identifiants sont dédupliqués dans la recherche et les références communes signalées, sans rapprochement avec la comptabilité.
+
+Le jeton n’existe que dans une fermeture JavaScript ; les résultats et corrections restent dans React en mémoire. Déconnexion, révocation, expiration et sortie de page annulent les lectures et effacent les références ; les réponses tardives sont ignorées. La méthode officielle de révocation contacte Google en POST ; une erreur n’est jamais présentée comme une réussite. Le SDK Google constitue un nouveau code de confiance sur la même origine, sans isolation cryptographique vis-à-vis d’IndexedDB ; les règles Google ne limitent pas le scope à Vinted. La configuration personnelle est attestée par le propriétaire. Il a confirmé la connexion physique Safari/PWA et la révocation de phase 1 ; les nouvelles lectures n’ont été testées par l’agent qu’avec des messages synthétiques. Les limites complètes figurent dans le rapport du prototype.

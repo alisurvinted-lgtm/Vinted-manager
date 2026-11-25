@@ -7,7 +7,7 @@ const base = "/Vinted-manager/gmail-prototype/";
 const approved = isApproved(config);
 // Aucune dérogation réseau lorsque le prototype est désactivé.
 const csp = approved
-  ? "default-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self'; img-src 'self'; connect-src https://accounts.google.com/gsi/ https://gmail.googleapis.com/gmail/v1/users/me/profile https://oauth2.googleapis.com/revoke; frame-src https://accounts.google.com/gsi/ https://accounts.google.com/o/oauth2/iframe; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+  ? "default-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self'; img-src 'self'; connect-src https://accounts.google.com/gsi/ https://gmail.googleapis.com/gmail/v1/users/me/profile https://gmail.googleapis.com/gmail/v1/users/me/messages https://gmail.googleapis.com/gmail/v1/users/me/messages/ https://oauth2.googleapis.com/revoke; frame-src https://accounts.google.com/gsi/ https://accounts.google.com/o/oauth2/iframe; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
   : "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; frame-src 'none'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'";
 export default defineConfig({
   root: fileURLToPath(new URL(".", import.meta.url)),

@@ -30,7 +30,16 @@ assert(
   !config.enabled || config.securityReviewConfirmed,
   "Revue de sécurité requise avant activation.",
 );
-for (const name of ["session.ts", "google.ts", "main.tsx"]) {
+for (const name of [
+  "session.ts",
+  "google.ts",
+  "main.tsx",
+  "gmail-api.ts",
+  "mail-content.ts",
+  "preview-model.ts",
+  "preview.ts",
+  "PreviewPanel.tsx",
+]) {
   const code = await readFile(root + name, "utf8");
   assert(
     !/\b(indexedDB|localStorage|sessionStorage|Dexie|caches|serviceWorker)\b/.test(

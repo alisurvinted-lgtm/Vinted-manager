@@ -55,6 +55,8 @@ const permitted = {
   "connect-src": [
     "https://accounts.google.com/gsi/",
     "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages/",
     "https://oauth2.googleapis.com/revoke",
   ],
   "frame-src": [

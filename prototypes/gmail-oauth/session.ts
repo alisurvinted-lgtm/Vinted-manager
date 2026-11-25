@@ -1,3 +1,5 @@
+import type { PreviewBatch } from "./preview-model";
+import type { PreviewRequest } from "./preview";
 export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 export interface ProbeConfig {
   enabled: boolean;
@@ -44,10 +46,17 @@ export const messages = {
   ready: "Prêt. Touchez Se connecter à Google pour ouvrir l’autorisation.",
   authorizing:
     "Terminez l’autorisation dans la fenêtre Google. Vous pouvez annuler ici.",
-  connected: "Autorisation reçue en mémoire. Aucun message n’a été consulté.",
+  connected:
+    "Autorisation reçue en mémoire. La recherche se fait uniquement à votre demande.",
   checking: "Vérification de l’accès à Gmail, sans lecture de message…",
   verified:
-    "Accès Gmail en lecture seule confirmé. Aucun message n’a été consulté.",
+    "Accès Gmail en lecture seule confirmé. Les notifications sont lues uniquement à votre demande.",
+  previewing:
+    "Lecture des notifications Vinted en cours… Vous pouvez arrêter en vous déconnectant.",
+  previewReady:
+    "Aperçu prêt à vérifier. Aucun article n’a été créé ni modifié.",
+  previewFailed:
+    "La recherche n’a pas abouti. L’aperçu a été effacé. Reconnectez-vous et réessayez ; votre comptabilité reste inchangée.",
   revoking: "Révocation demandée à Google…",
   revoked:
     "Google a confirmé la révocation. La déconnexion locale est terminée.",
@@ -77,6 +86,12 @@ export interface ProbeDependencies {
   loadGoogle: () => Promise<GoogleAuthorization>;
   checkAccess: (token: string, signal: AbortSignal) => Promise<void>;
   notify: (state: ProbeState) => void;
+  readPreview?: (
+    token: string,
+    input: PreviewRequest,
+    signal: AbortSignal,
+  ) => Promise<PreviewBatch>;
+  notifyPreview?: (batch: PreviewBatch | null, append: boolean) => void;
 }
 // Seule cette fermeture conserve temporairement le jeton. Les états publics ne le contiennent jamais.
 export function createProbe(config: ProbeConfig, deps: ProbeDependencies) {
@@ -89,6 +104,9 @@ export function createProbe(config: ProbeConfig, deps: ProbeDependencies) {
   let expiry: ReturnType<typeof setTimeout> | undefined;
   let watchdog: ReturnType<typeof setTimeout> | undefined;
   let request: AbortController | undefined;
+  let previewMonth = "";
+  let nextPageToken: string | null = null;
+  let seenIds: string[] = [];
   let state: ProbeState = Object.freeze({
     notice: allowed ? "idle" : "disabled",
     connected: false,
@@ -104,8 +122,15 @@ export function createProbe(config: ProbeConfig, deps: ProbeDependencies) {
     });
     deps.notify(state);
   }
+  function forgetPreview() {
+    previewMonth = "";
+    nextPageToken = null;
+    seenIds = [];
+    deps.notifyPreview?.(null, false);
+  }
   function clear() {
     generation++;
+    forgetPreview();
     credential = undefined;
     expiresAt = 0;
     clearTimeout(expiry);
@@ -239,6 +264,53 @@ export function createProbe(config: ProbeConfig, deps: ProbeDependencies) {
           clearTimeout(watchdog);
           request = undefined;
         }
+      }
+    },
+    async preview(month: string, append = false) {
+      if (!allowed || !credential || state.busy || !deps.readPreview) return;
+      if (Date.now() >= expiresAt) {
+        clear();
+        publish("expired");
+        return;
+      }
+      if (append && (month !== previewMonth || !nextPageToken)) return;
+      const input: PreviewRequest = append
+        ? { month, pageToken: nextPageToken!, seenIds }
+        : { month };
+      if (!append) forgetPreview();
+      const attempt = generation;
+      request = new AbortController();
+      const active = request;
+      publish("previewing", true);
+      watchdog = setTimeout(() => {
+        if (attempt === generation) {
+          clear();
+          publish("previewFailed");
+        }
+      }, 60_000);
+      try {
+        const batch = await deps.readPreview(credential, input, active.signal);
+        if (attempt !== generation || active.signal.aborted) return;
+        previewMonth = batch.month;
+        nextPageToken = batch.nextPageToken;
+        seenIds = batch.seenIds;
+        deps.notifyPreview?.(batch, append);
+        publish("previewReady");
+      } catch {
+        if (attempt !== generation) return;
+        clear();
+        publish("previewFailed");
+      } finally {
+        if (attempt === generation) {
+          clearTimeout(watchdog);
+          request = undefined;
+        }
+      }
+    },
+    forgetPreview() {
+      if (!state.busy) {
+        forgetPreview();
+        publish(credential ? "connected" : allowed ? "idle" : "disabled");
       }
     },
     revoke() {

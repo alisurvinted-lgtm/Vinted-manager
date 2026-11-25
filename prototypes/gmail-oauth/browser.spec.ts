@@ -301,3 +301,226 @@ test("refus de révocation et sortie de page : aucun faux succès, plus d’acc�
   ).toBeDisabled();
   await expect(page.getByRole("checkbox")).not.toBeChecked();
 });
+
+test("phase 2 : notifications simulées, corrections éphémères, aucun HTML exécuté ni écriture comptable", async ({
+  page,
+  context,
+}) => {
+  const traffic = await mockGoogle(page, context);
+  const storedArticle = {
+    id: "__VM_PRIVATE_TEST__-stock-existant",
+    name: "Article synthétique conservé",
+    purchasePrice: 1520,
+    fees: [{ type: "Nettoyage", amount: 100 }],
+  };
+  await page.evaluate(async (article) => {
+    const open = indexedDB.open("vinted-manager", 2);
+    await new Promise<void>((resolve, reject) => {
+      open.onupgradeneeded = () => {
+        open.result.createObjectStore("articles", { keyPath: "id" });
+      };
+      open.onsuccess = () => resolve();
+      open.onerror = () => reject();
+    });
+    const db = open.result;
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction("articles", "readwrite");
+      tx.objectStore("articles").put(article);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject();
+    });
+    db.close();
+  }, storedArticle);
+  const sourceMarker = "__VM_PRIVATE_TEST__ notification locale";
+  const timestamp = String(Date.parse("2026-01-10T12:00:00Z"));
+  const auth =
+    "mx.google.com; dkim=pass header.i=@vinted.fr; dmarc=pass header.from=vinted.fr";
+  const metadata = (
+    id: string,
+    subject: string,
+    from = "Vinted <synthetique@vinted.fr>",
+    proof = auth,
+  ) => ({
+    id,
+    internalDate: timestamp,
+    payload: {
+      headers: [
+        { name: "From", value: from },
+        { name: "Subject", value: subject },
+        { name: "Authentication-Results", value: proof },
+      ],
+    },
+  });
+  const meta: Record<string, unknown> = {
+    a1: metadata("a1", "Ton article est vendu"),
+    a2: metadata("a2", "Transaction finalisée"),
+    a3: metadata(
+      "a3",
+      "Message personnel",
+      "Personnel <fictif@example.invalid>",
+    ),
+    a4: metadata(
+      "a4",
+      "Commande annulée",
+      undefined,
+      "mx.google.com; dkim=fail header.i=@vinted.fr",
+    ),
+  };
+  const content = (id: string) => ({
+    id,
+    payload: {
+      mimeType: "text/html",
+      body: {
+        data: Buffer.from(
+          `<script>window.previewExecuted=1</script><img src="https://pixel.example.invalid/trace"><p>${sourceMarker}</p><p>Prix de vente : 35,00 €</p><p>Référence de commande : FICTIF-1234</p>`,
+        ).toString("base64url"),
+      },
+    },
+  });
+  await context.route(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages**",
+    async (route) => {
+      const url = new URL(route.request().url());
+      const id = url.pathname.split("/").at(-1)!;
+      expect(route.request().method()).toBe("GET");
+      let data: unknown;
+      if (id === "messages")
+        data = {
+          messages: [{ id: "a1" }, { id: "a1" }, { id: "a3" }, { id: "a4" }],
+          nextPageToken: "synthetic-next",
+        };
+      else if (url.searchParams.get("format") === "metadata") data = meta[id];
+      else {
+        expect(["a1", "a2"]).toContain(id);
+        data = content(id);
+      }
+      await route.fulfill({
+        headers: {
+          "access-control-allow-origin": "https://alisurvinted-lgtm.github.io",
+        },
+        contentType: "application/json",
+        body: JSON.stringify(data),
+      });
+    },
+  );
+  await authorize(page);
+  await page.getByLabel("Mois des notifications").fill("2026-01");
+  await page
+    .getByRole("button", {
+      name: "Rechercher les notifications Vinted",
+      exact: true,
+    })
+    .click();
+  await expect(page.getByRole("status")).toContainText("Aperçu prêt");
+  await expect(page.locator(".notification-card")).toHaveCount(2);
+  await expect(
+    page.getByText("Message personnel", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(/Authentification de l’expéditeur non confirmée/),
+  ).toBeVisible();
+  // Une réponse suivante ajoute une notification distincte avec la même référence.
+  await context.route(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages?**",
+    async (route) => {
+      const url = new URL(route.request().url());
+      const data = url.searchParams.has("pageToken")
+        ? { messages: [{ id: "a1" }, { id: "a2" }] }
+        : {
+            messages: [{ id: "a1" }, { id: "a3" }, { id: "a4" }],
+            nextPageToken: "synthetic-next",
+          };
+      await route.fulfill({
+        headers: {
+          "access-control-allow-origin": "https://alisurvinted-lgtm.github.io",
+        },
+        contentType: "application/json",
+        body: JSON.stringify(data),
+      });
+    },
+  );
+  const first = page.locator(".notification-card").filter({
+    has: page.getByRole("heading", {
+      name: "Ton article est vendu",
+      exact: true,
+    }),
+  });
+  await page
+    .getByLabel("Type pour Ton article est vendu")
+    .selectOption("sale_final");
+  await expect(first.getByText(/Bénéfice à compléter/)).toBeVisible();
+  await expect(
+    page.getByLabel("Achat TTC pour Ton article est vendu"),
+  ).toHaveValue("");
+  await expect(
+    page.getByLabel("Date de transaction pour Ton article est vendu"),
+  ).toHaveValue("");
+  await page.getByLabel("Achat TTC pour Ton article est vendu").fill("15,20");
+  await page
+    .getByLabel("Prix de vente pour Ton article est vendu")
+    .fill("35,00");
+  await page
+    .getByRole("button", { name: "Charger la suite du mois", exact: true })
+    .click();
+  await expect(page.locator(".notification-card")).toHaveCount(3);
+  await expect(
+    page.getByLabel("Achat TTC pour Ton article est vendu"),
+  ).toHaveValue("15,20");
+  await expect(
+    page.getByText(/Même référence dans plusieurs notifications/),
+  ).toHaveCount(2);
+  await first
+    .getByText("Consulter le texte du message", { exact: true })
+    .click();
+  await expect(first.locator(".mail-text")).toContainText(sourceMarker);
+  expect(
+    await page.evaluate(() => Reflect.get(window, "previewExecuted")),
+  ).toBeUndefined();
+  expect(traffic.some((t) => t.url.includes("pixel.example.invalid"))).toBe(
+    false,
+  );
+  for (const event of traffic) {
+    expect(event.url).not.toContain(sourceMarker);
+    expect(event.body ?? "").not.toContain(sourceMarker);
+  }
+  expect(
+    await page.evaluate(async () => (await indexedDB.databases()).length),
+  ).toBe(1);
+  expect(
+    await page.evaluate(() => ({ ...localStorage, ...sessionStorage })),
+  ).toEqual({});
+  await page
+    .getByRole("button", { name: "Révoquer l’accès Google", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText(
+    "Google a confirmé la révocation",
+  );
+  await expect(page.locator(".notification-card")).toHaveCount(0);
+  await expect(page.getByText(sourceMarker, { exact: false })).toHaveCount(0);
+  await page.reload();
+  await expect(
+    page.getByRole("button", {
+      name: "Rechercher les notifications Vinted",
+      exact: true,
+    }),
+  ).toBeDisabled();
+  const after = await page.evaluate(async () => {
+    const open = indexedDB.open("vinted-manager");
+    return new Promise((resolve, reject) => {
+      open.onerror = () => reject();
+      open.onsuccess = () => {
+        const db = open.result;
+        const query = db
+          .transaction("articles")
+          .objectStore("articles")
+          .getAll();
+        query.onsuccess = () => {
+          resolve({ version: db.version, articles: query.result });
+          db.close();
+        };
+        query.onerror = () => reject();
+      };
+    });
+  });
+  expect(after).toEqual({ version: 2, articles: [storedArticle] });
+});
