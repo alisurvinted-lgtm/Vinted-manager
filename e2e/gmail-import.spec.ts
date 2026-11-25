@@ -10,7 +10,7 @@ const messages = [
     id: "final1",
     subject: "La transaction est finalisée",
     date: "2026-11-22T12:00:00Z",
-    body: `Article : ${marker}\nNous avons viré 27,80 € sur ton porte-monnaie Vinted.\nRéférence de transaction : FICTIF-SALE-202`,
+    body: `Article : ${marker}\nNous avons versé 27,80 € sur ton solde Vinted.\nRéférence de transaction : FICTIF-SALE-202`,
   },
   {
     id: "announce1",
@@ -310,4 +310,31 @@ test("Gmail : correction dédiée, confirmation refusée puis remboursement trac
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByLabel("Mois sélectionné").fill("2026-11");
   await expect(page.locator(".metric-value").first()).toContainText("26,80");
+});
+
+test("phase 2 : date Gmail préremplie, estimation modifiable et mois d’encaissement conservé", async ({
+  page,
+  context,
+}) => {
+  await setup(page, context);
+  const before = await diskSnapshot(page);
+  await sync(page);
+  const sale = page
+    .getByRole("region", { name: "Opérations fiables" })
+    .locator(".sync-row")
+    .filter({ hasText: "Vente encaissée" });
+  await sale.getByRole("button", { name: "Modifier / détails" }).click();
+  await expect(sale.locator('input[type="date"]')).toHaveValue("2026-11-22");
+  await expect(sale.locator(".sync-row-main")).toContainText("estimée");
+  await sale.locator('input[type="date"]').fill("2026-12-01");
+  await expect(sale.locator(".sync-row-main")).not.toContainText("estimée");
+  expect(await diskSnapshot(page)).toEqual(before);
+  await page
+    .getByRole("button", { name: "Valider les 3 opérations fiables" })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByLabel("Mois sélectionné").fill("2026-11");
+  await expect(page.locator(".metric-value").first()).toContainText("0,00");
+  await page.getByLabel("Mois sélectionné").fill("2026-12");
+  await expect(page.locator(".metric-value").first()).toContainText("27,80");
 });

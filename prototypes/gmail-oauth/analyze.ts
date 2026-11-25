@@ -35,7 +35,14 @@ const norm = (v: string) =>
     .replace(/[\u00a0\u202f]/g, " ")
     .toLowerCase();
 export function subjectType(subject: string): EventKind | null {
-  const s = norm(subject).trim();
+  const s = norm(subject).replace(/\s+/g, " ").trim();
+  // Un bordereau annulé ou une offre commerciale ne constituent pas une correction comptable.
+  if (
+    /^(?:(?:ton|votre|le|la|un|une|nouveau|nouvelle) )?(?:bordereau|offre|favori|message|promotion)\b/.test(
+      s,
+    )
+  )
+    return null;
   if (
     /\b(rembours|annul|correction (?:du |de )?(?:paiement|montant)|ajustement financier)/.test(
       s,
@@ -43,20 +50,20 @@ export function subjectType(subject: string): EventKind | null {
   )
     return /\brembours/.test(s) ? "refund" : "cancellation";
   if (
-    /bordereau|expedi|livraison|livre[!\s]|message|offre de prix|favori|promotion|rappel|en route/.test(
+    /bordereau|expedi|livraison|livre[!\s]|message|offre de prix|favori|promotion|rappel|en route|confirmation (?:requise|necessaire)|action requise|confirme(?:r|z)? (?:l.envoi|la reception|ta commande|votre commande)/.test(
       s,
     )
   )
     return null;
   if (
-    /(?:ton|votre|le|voici (?:ton|votre)) recu (?:pour|de) (?:la |ta |votre )?commande/.test(
+    /^(?:ton|votre|le|voici (?:ton|votre)) recu (?:pour|de) (?:la |ta |votre )?commande/.test(
       s,
     ) ||
     /^recu (?:de|pour) (?:ta |votre |la )?commande/.test(s)
   )
     return "purchase";
   if (
-    /(?:ton|votre|l')\s*article (?:s'est|s est|a ete|est) vendu|tu as vendu|vous avez vendu/.test(
+    /^(?:(?:ton|votre|l')\s*article (?:s'est|s est|a ete|est) vendu|tu as vendu|vous avez vendu)\b/.test(
       s,
     )
   )
@@ -71,40 +78,89 @@ export function euros(value: string): number | null {
   const v = value
     .trim()
     .replace(/[ \u00a0\u202f]/g, "")
-    .replace(",", ".");
+    .replace(",", ".")
+    .replace(/^\+/, "");
   if (!/^\d{1,7}(?:\.\d{1,2})?$/.test(v)) return null;
   const [a, b = ""] = v.split(".");
   const n = Number(a) * 100 + Number(b.padEnd(2, "0"));
   return Number.isSafeInteger(n) && n <= 999999999 ? n : null;
 }
 const MONEY =
-  "(\\d{1,7}(?:[ \\u00a0\\u202f]\\d{3})*(?:[,.]\\d{1,2})?)\\s*(?:€|EUR\\b)";
+  "(?<![\\d.,+−-])([-+−]?\\d{1,7}(?:[ \\u00a0\\u202f]\\d{3})*(?:[,.]\\d{1,2})?)\\s*(?:€|EUR\\b)";
 function labeled(
   text: string,
   label: string,
 ): { value: number | null; conflict: boolean } {
   const values = [
     ...text.matchAll(
-      new RegExp(`(?:^|[\\n;])${label}\\s*[:：]?\\s*${MONEY}`, "gim"),
+      new RegExp(`(?:^|[\\n;])[ \t]*${label}\\s*[:：]?\\s*${MONEY}`, "gim"),
     ),
-  ]
-    .map((m) => euros(m[1]))
-    .filter((v): v is number => v !== null);
-  const distinct = [...new Set(values)];
+  ].map((m) => euros(m[1]));
+  const distinct = [...new Set(values.filter((v): v is number => v !== null))];
   return {
     value: distinct.length === 1 ? distinct[0] : null,
-    conflict: distinct.length > 1,
+    conflict: values.some((v) => v === null) || distinct.length > 1,
   };
 }
 function moneyFromPattern(text: string, pattern: string) {
-  const values = [...text.matchAll(new RegExp(pattern, "gi"))]
-    .map((m) => euros(m[1]))
-    .filter((v): v is number => v !== null);
-  const unique = [...new Set(values)];
+  const values = [...text.matchAll(new RegExp(pattern, "gi"))].map((m) =>
+    euros(m[1]),
+  );
+  const unique = [...new Set(values.filter((v): v is number => v !== null))];
   return {
     value: unique.length === 1 ? unique[0] : null,
-    conflict: unique.length > 1,
+    conflict: values.some((v) => v === null) || unique.length > 1,
   };
+}
+const WALLET =
+  "(?:ton|votre)\\s+(?:porte[- ]monnaie(?:\\s+vinted)?|solde\\s+vinted)";
+const DESTINATION = `(?:sur|dans|a)\\s+${WALLET}`;
+const CREDIT_VERB = "(?:vire|verse|credite|transfere|ajoute)(?:e)?s?";
+function walletCredit(body: string) {
+  const label = labeled(
+    body,
+    "(?:montant credite|montant recu|montant vire|paiement recu)",
+  );
+  const relations = [
+    moneyFromPattern(
+      body,
+      `${MONEY}\\s+(?:(?:a|ont) ete|vient d.etre)\\s+${CREDIT_VERB}\\s+${DESTINATION}`,
+    ),
+    moneyFromPattern(
+      body,
+      `(?:avons|a)\\s+${CREDIT_VERB}\\s+${MONEY}\\s+${DESTINATION}`,
+    ),
+    moneyFromPattern(
+      body,
+      `${WALLET}\\s+a ete\\s+${CREDIT_VERB}\\s+de\\s+${MONEY}`,
+    ),
+  ];
+  const values = [
+    ...new Set(
+      [label, ...relations]
+        .map((r) => r.value)
+        .filter((v): v is number => v !== null),
+    ),
+  ];
+  const conflict =
+    [label, ...relations].some((r) => r.conflict) || values.length > 1;
+  const completedClause = new RegExp(
+    `(?:montant|paiement)\\s+a ete\\s+${CREDIT_VERB}\\s+${DESTINATION}`,
+  ).test(body);
+  const negativeOrFuture =
+    new RegExp(
+      String.raw`${MONEY}\s+(?:(?:ne\s+)?(?:sera|seront)(?:\s+pas)?|n.(?:a|ont)\s+pas\s+ete)\s+${CREDIT_VERB}\s+${DESTINATION}`,
+      "i",
+    ).test(body) ||
+    /(?:montant|paiement)[^\n!?]{0,100}(?:sera|seront|n.a pas|n.ont pas|pas encore)[^\n!?]{0,60}(?:vire|verse|credite|ajoute|transfere)|(?:aucun|pas encore)[^\n!?]{0,80}(?:vire|verse|credite|ajoute|transfere)/.test(
+      body,
+    );
+  const confirmed =
+    !negativeOrFuture &&
+    (relations.some((r) => r.value !== null) ||
+      completedClause ||
+      (new RegExp(WALLET).test(body) && label.value !== null));
+  return { value: conflict ? null : (values[0] ?? null), conflict, confirmed };
 }
 function explicitDate(
   text: string,
@@ -114,26 +170,38 @@ function explicitDate(
     kind === "purchase" || kind === "purchase_final"
       ? "date d.achat|date de (?:la )?commande|commande passee le"
       : kind === "sale_final"
-        ? "date de finalisation|date d.encaissement|paiement (?:recu|credite) le|finalisee le"
+        ? "date de finalisation|date d.encaissement|date de versement|paiement (?:recu|credite) le|finalisee le"
         : kind === "sale_announced"
-          ? "date de vente|vendu le"
+          ? "date de vente(?: annoncee)?|vendu le"
           : kind === "refund"
             ? "date du remboursement|remboursement effectue le"
             : "date d.annulation|annulee? le";
   const s = norm(text);
   const found: string[] = [];
   let invalid = false;
-  for (const m of s.matchAll(
+  const pattern = (label: string) =>
     new RegExp(
-      `(?:${labels})\\s*[:：]?\\s*(\\d{4}-\\d{2}-\\d{2}|\\d{1,2}[/.]\\d{1,2}[/.]\\d{4}|\\d{1,2}\\s+[a-z]+\\s+\\d{4})`,
+      String.raw`(?:${label})\s*[:：]?\s*(\d{4}-\d{2}-\d{2}(?:t\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:z|[+-]\d{2}:\d{2}))?|\d{1,2}[/.]\d{1,2}[/.]\d{4}|\d{1,2}(?:er)?\s+[a-z]+\s+\d{4})(?![\dt])`,
       "gi",
-    ),
-  )) {
+    );
+  const matches = [...s.matchAll(pattern(labels))];
+  // Le libellé propre à l'événement prime sur une date générique de transaction.
+  if (!matches.length)
+    matches.push(...s.matchAll(pattern("date de transaction")));
+  for (const m of matches) {
     let d = m[1];
+    if (/t/i.test(d)) {
+      const instant = new Date(d.toUpperCase());
+      if (!validDate(d.slice(0, 10)) || !Number.isFinite(instant.getTime())) {
+        invalid = true;
+        continue;
+      }
+      d = parisDate(instant);
+    }
     const numeric = d.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/);
     if (numeric)
       d = `${numeric[3]}-${numeric[2].padStart(2, "0")}-${numeric[1].padStart(2, "0")}`;
-    const words = d.match(/^(\d{1,2})\s+([a-z]+)\s+(\d{4})$/);
+    const words = d.match(/^(\d{1,2})(?:er)?\s+([a-z]+)\s+(\d{4})$/);
     if (words) {
       const month =
         [
@@ -192,10 +260,14 @@ export function analyzeNotification(
   const missing: string[] = [];
   let confirmed = false,
     conflict = false;
-  const total = labeled(
+  const paid = labeled(
     body,
-    "(?:montant paye|total paye|montant total paye|total de la commande|total ttc)",
+    "(?:montant (?:total )?paye|total paye)(?:\\s+ttc)?",
   );
+  const total =
+    paid.value !== null || paid.conflict
+      ? paid
+      : labeled(body, "(?:total de la commande|total ttc)");
   const item = labeled(
     body,
     "(?:prix de l.article|prix des articles|sous.total des articles)",
@@ -225,48 +297,8 @@ export function analyzeNotification(
     if (sale.value === null && !sale.conflict && confirmed) sale = item;
   }
   if (kind === "sale_final") {
-    const ownerWallet =
-      /(?:ton|votre) porte[- ]monnaie|(?:ton|votre) solde vinted/.test(body);
-    const creditLabel = labeled(
-      body,
-      "(?:montant credite|montant recu|montant vire|paiement recu)",
-    );
-    let credit = creditLabel;
-    if (credit.value === null && !credit.conflict)
-      credit = moneyFromPattern(
-        body,
-        `${MONEY}[^\\n]{0,60}?(?:a|ont) ete (?:vire|viree|vers[eé]|credit[eé])s?[^\\n]{0,80}(?:ton|votre) porte[- ]monnaie`,
-      );
-    if (credit.value === null && !credit.conflict)
-      credit = moneyFromPattern(
-        body,
-        `(?:avons|a) (?:vire|verse|credite)\\s+${MONEY}[^\\n]{0,100}(?:ton|votre) porte[- ]monnaie`,
-      );
-    const relation = [
-      moneyFromPattern(
-        body,
-        `${MONEY}[^\\n]{0,60}?(?:a|ont) ete (?:vire|viree|verse|credite)s?[^\\n]{0,80}(?:ton|votre) porte[- ]monnaie`,
-      ),
-      moneyFromPattern(
-        body,
-        `(?:avons|a) (?:vire|verse|credite)\\s+${MONEY}[^\\n]{0,100}(?:ton|votre) porte[- ]monnaie`,
-      ),
-    ];
-    if (
-      relation.some(
-        (r) =>
-          r.conflict ||
-          (r.value !== null &&
-            credit.value !== null &&
-            r.value !== credit.value),
-      )
-    )
-      credit = { value: null, conflict: true };
-    const credited =
-      ownerWallet &&
-      /(?:a|ont) ete (?:vire|verse|credite)|(?:avons|a) (?:vire|verse|credite)|montant credite|paiement recu/.test(
-        body,
-      );
+    const credit = walletCredit(body);
+    const credited = credit.confirmed;
     const buyerFinal =
       /(?:paiement|montant)[^\n]{0,100}(?:au vendeur|a ete transmis au vendeur)|le vendeur a recu (?:son|le) paiement/.test(
         body,

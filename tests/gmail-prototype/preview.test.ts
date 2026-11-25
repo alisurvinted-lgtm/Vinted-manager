@@ -169,6 +169,55 @@ describe("Sélection et authenticité des notifications", () => {
     ).toBe(false);
   });
 });
+describe("Filtrage phase 2 avant lecture du corps", () => {
+  it.each([
+    "Ton bordereau d’envoi a été annulé",
+    "Ton article s’est vendu ! — confirmation requise",
+    "Voici un message : ton article s’est vendu !",
+  ])("ne télécharge pas une notification exclue : %s", async (subject) => {
+    const api = server({
+      "meta:a1": metadata("a1", undefined, undefined, subject),
+    });
+    const result = await readPreview(
+      token,
+      { month: "2026-01" },
+      new AbortController().signal,
+    );
+    expect(result.rows).toEqual([]);
+    expect(result.ignored).toBe(1);
+    expect(api.calls).toHaveLength(2);
+    expect(
+      api.calls.some((c) => c.url.searchParams.get("format") === "full"),
+    ).toBe(false);
+  });
+  it("ne perd ni un paiement finalisé vers le solde, ni sa date réelle hors du mois de réception", async () => {
+    server({
+      "meta:a1": metadata(
+        "a1",
+        undefined,
+        undefined,
+        "La transaction est finalisée",
+        "2026-02-01T00:30:00Z",
+      ),
+      "body:a1": body(
+        "a1",
+        "Article : Pull fictif\nNous avons versé 9,80 € sur ton solde Vinted.\nDate de transaction : 31/01/2026",
+      ),
+    });
+    const result = await readPreview(
+      token,
+      { month: "2026-02" },
+      new AbortController().signal,
+    );
+    expect(result.rows[0].analysis).toMatchObject({
+      date: "2026-01-31",
+      dateEstimated: false,
+      salePrice: 980,
+      confirmed: true,
+    });
+  });
+});
+
 describe("Lecture locale bornée et pagination", () => {
   it("recherche le mois local avec des secondes Unix, lit uniquement un message authentifié et ne transmet aucun contenu", async () => {
     vi.stubEnv("TZ", "Europe/Paris");

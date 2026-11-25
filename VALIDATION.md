@@ -1,5 +1,39 @@
 # Validation de Vinted Manager
 
+## Phase 2 indépendante — filtrage et extraction Gmail, non déployée
+
+Base : `4045eeba6f082fd8facf56c0c76702382ccfbf29`. Branche de travail : `feature/phase2-filtrage-extraction`. Cette section décrit des changements préparés sur la branche dédiée, pas la version actuellement en ligne. Aucune modification de `main` ni aucun déploiement demandé pour cette phase.
+
+Un seul fichier de code exécuté change : `prototypes/gmail-oauth/analyze.ts`. Le filtrage existant avant lecture du corps et la chaîne `analyzeNotification → proposedRow.analysis → proposalSelection` sont réutilisés. Aucun nouveau stockage, réseau, scope, format de protocole ou mécanisme OAuth.
+
+- Objets des trois familles utiles reconnus en début d’objet ; les citations dans une notification sans intérêt comptable ne suffisent plus. Bordereaux annulés et offres commerciales ne deviennent pas des corrections financières. Les demandes de confirmation sont écartées ; une confirmation de paiement déjà acquise n’est pas confondue avec une action à effectuer. Les véritables annulations/remboursements restent des candidats dédiés, à rattacher à une transaction lors de la phase 3.
+- Montant payé prioritaire sur les autres totaux d’un reçu ; frais de port/protection conservés séparément sans addition supplémentaire. Un total payé contradictoire, négatif ou invalide reste à vérifier ; aucune substitution par zéro.
+- Versements réellement effectués vers le porte-monnaie **ou le solde Vinted** reconnus, avec contrôle des montants concurrents. Un solde global, un versement futur, une négation, un montant tronqué ou un crédit de remboursement ne suffit pas à confirmer une vente.
+- Dates propres à l’événement prioritaires, puis date explicite de transaction, puis réception Gmail estimée en Europe/Paris. Dates françaises, premier du mois et horodatages ISO avec fuseau pris en charge. Dates impossibles ou contradictoires à vérifier. Un mois de réception ne remplace pas le mois réel de transaction.
+- Nom, prix inconnu nullable, références hachées et indicateur de date estimée transmis par le protocole existant. Aucun corps Gmail brut supplémentaire persisté. Aucune modification du rapprochement, des calculs ou de l’interface.
+
+| Contrôle ciblé                           | Résultat exécuté                                                                                            |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Tests unitaires analyse et lecture Gmail | **118 réussis**, dont 48 cas ajoutés ; 70 tests de référence conservés                                      |
+| Parcours intégrés Gmail                  | **8 réussis**, Chromium et WebKit iPhone                                                                    |
+| Parcours du lecteur Gmail                | **10 réussis**, Chromium et WebKit iPhone                                                                   |
+| TypeScript et builds                     | Application sous `/Vinted-manager/` et lecteur compilés avec succès                                         |
+| Conservation de la phase 1               | Fichiers du coffre, IndexedDB v4, migration, sauvegardes, OAuth, CSP et service worker identiques à la base |
+
+Messages exclusivement synthétiques, profils temporaires et réponses Google simulées. Aucun accès au compte ni aux données réelles du propriétaire. La suite complète du projet n’a pas été relancée : les contrôles portent sur les fichiers et parcours concernés. Les tests des fonctions de rapprochement existantes servent uniquement de vérification de non-régression, sans développement de phase 3.
+
+Limites : reconnaissance de formulations françaises explicitement prises en charge, sans certification de tous les modèles officiels Vinted. Un modèle inconnu, une ambiguïté ou une contradiction reste à vérifier. L’iPhone physique, la boîte réelle et le déploiement de cette branche ne sont pas validés dans cette phase.
+
+### Point de reprise pour la phase 3
+
+Partir du commit de fin de phase 2 sur `feature/phase2-filtrage-extraction` (hash fourni dans le bilan), issu de `4045eeb`. Conserver le coffre v1, IndexedDB v4, les sauvegardes et OAuth sans réécriture.
+
+Utiliser les sorties de `proposalSelection` : `sourceKey`, `eventKey`, `referenceKey`, `relatedKeys`, `kind`/`detectedKind`, `confirmed`/`confidence`, montants en centimes éventuellement `null`, `date` et `dateEstimated`. Le parcours actif utilise `analysis`, pas les anciens champs manuels de `PreviewPanel`.
+
+Examiner ensuite `src/lib/gmail-import.ts` et ses tests pour consolider les rapprochements entre notifications et articles existants : références fiables avant noms, annonce/finalisation de part et d’autre d’un mois ou d’une année, répétition de synchronisation, articles homonymes et conservation des corrections manuelles. Les annulations/remboursements ne doivent pas être appliqués sur la seule reconnaissance d’un objet ou d’un montant. Ne pas modifier les phases 4/5 ou déployer automatiquement cette branche.
+
+---
+
 ## Livraison du 25 novembre 2026 — coffre actif et automatisation Gmail
 
 Cette section décrit la livraison actuelle ; les sections suivantes sont des états historiques et ne décrivent pas le stockage actuel. Aucun accès aux données du propriétaire ni à ses e-mails réels. Les données de test sont synthétiques, dans des profils de navigateur temporaires.
