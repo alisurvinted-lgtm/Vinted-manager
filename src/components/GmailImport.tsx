@@ -119,7 +119,8 @@ export function GmailImport({
     [expanded, setExpanded] = useState<string | null>(sourceId ?? null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [connected, setConnected] = useState(!initial);
+    [connected, setConnected] = useState(!initial),
+    [connectorOpen, setConnectorOpen] = useState(!initial);
   const iframe = useRef<HTMLIFrameElement>(null),
     busyRef = useRef(false);
   const [nonce] = useState(() => crypto.randomUUID());
@@ -236,6 +237,7 @@ export function GmailImport({
           ),
         );
         setStats(data.stats);
+        if (!data.stats.running) setConnectorOpen(false);
         setError("");
       } catch {
         setError(
@@ -891,6 +893,7 @@ export function GmailImport({
               <button
                 className="text-button"
                 onClick={() => {
+                  setConnectorOpen(true);
                   iframe.current?.contentWindow?.postMessage(
                     {
                       type: "vm:gmail-detail",
@@ -900,10 +903,12 @@ export function GmailImport({
                     },
                     location.origin,
                   );
-                  iframe.current?.scrollIntoView({
-                    block: "start",
-                    behavior: "smooth",
-                  });
+                  requestAnimationFrame(() =>
+                    iframe.current?.scrollIntoView({
+                      block: "start",
+                      behavior: "smooth",
+                    }),
+                  );
                 }}
               >
                 Consulter le texte du message
@@ -924,21 +929,31 @@ export function GmailImport({
     >
       <div className="sync-workspace">
         <p className="sync-privacy">
-          L’espace comptable est déverrouillé. E-mails et jetons restent en
-          mémoire. Seules les opérations validées et les éléments à vérifier
-          sont conservés dans votre coffre chiffré.
+          Lecture locale. Les opérations et éléments à vérifier seront
+          enregistrés chiffrés après votre validation. Les e-mails restent en
+          mémoire.
         </p>
         {connected ? (
-          <iframe
-            ref={iframe}
-            title="Connexion et analyse Gmail"
-            src={GMAIL_FRAME_URL}
-            onLoad={sendSession}
-            className="sync-connector"
-            scrolling="no"
-            style={{ height }}
-            referrerPolicy="no-referrer"
-          />
+          <details
+            className="sync-session"
+            open={connectorOpen}
+            onToggle={(e) => setConnectorOpen(e.currentTarget.open)}
+          >
+            <summary>
+              Connexion et période
+              {stats && !stats.running ? " · modifier / révoquer" : ""}
+            </summary>
+            <iframe
+              ref={iframe}
+              title="Connexion et analyse Gmail"
+              src={GMAIL_FRAME_URL}
+              onLoad={sendSession}
+              className="sync-connector"
+              scrolling="no"
+              style={{ height }}
+              referrerPolicy="no-referrer"
+            />
+          </details>
         ) : (
           <button
             className="button secondary"
@@ -1012,9 +1027,9 @@ export function GmailImport({
         {(rows.length > 0 || stats) && (
           <div className="sync-footer">
             <p>
-              {ready.length} opération(s) seront enregistrées ;{" "}
-              {review.length + corrections.length} resteront à vérifier sans
-              effet automatique. Les achats inconnus ne valent jamais zéro.
+              {ready.length} opération(s) prêtes ·{" "}
+              {review.length + corrections.length} à vérifier, sans effet
+              automatique.
             </p>
             <button
               className="button secondary"

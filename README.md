@@ -27,7 +27,7 @@ Après le premier chargement complet et la création du coffre, les fonctions co
 
 L’intégration officielle existante est réutilisée : OAuth Google Identity Services, **gmail.readonly uniquement**, client public personnel déjà fourni. Aucun mot de passe Gmail/Vinted, secret client ou jeton de renouvellement. L’autorisation couvre techniquement **toute la boîte**, même si le code limite les recherches aux notifications Vinted.
 
-Choisissez un mois, acceptez la lecture puis touchez **Synchroniser Gmail**. Une seule validation enregistre les opérations fiables. Les lignes compactes affichent article, type, montant, date et statut ; les détails et modifications sont dépliables. Les opérations ambiguës et corrections sont conservées dans le coffre, sans effet financier automatique, pour être examinées séparément.
+Choisissez un mois, acceptez la lecture puis touchez **Synchroniser Gmail**. Une seule validation enregistre les opérations fiables. Les lignes compactes affichent article, type, montant, date et statut ; les détails et modifications sont dépliables. Après analyse, le bloc de connexion se replie pour montrer les opérations ; période et révocation restent accessibles. Les opérations ambiguës et corrections sont conservées dans le coffre, sans effet financier automatique, pour être examinées séparément.
 
 - **Reçu d’achat** : le libellé « Montant payé » fournit le coût TTC. Le port et la protection déjà inclus ne sont jamais déduits une seconde fois.
 - **Vente annoncée** : reste en attente et n’entre pas dans le chiffre d’affaires.

@@ -3784,3 +3784,55 @@ tbody tr:hover {
   border: 1px solid #cad9ca;
   border-radius: 8px;
 }
+
+.sync-session {
+  border-bottom: 1px solid #e1e9dc;
+  margin: 8px 0 12px;
+}
+.sync-session > summary {
+  min-height: 44px;
+  padding: 12px 0;
+  color: #176453;
+  font-size: 13px;
+  cursor: pointer;
+}
+.sync-footer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+}
+.sync-footer p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.sync-footer .button {
+  min-height: 44px;
+  padding: 10px;
+  font-size: 13px;
+}
+.modal:has(.sync-workspace) .modal-header {
+  margin-bottom: 12px;
+}
+.sync-workspace .sync-privacy {
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 8px 0;
+}
+.sync-session > summary {
+  list-style: none;
+}
+.sync-session > summary::-webkit-details-marker {
+  display: none;
+}
+.sync-session > summary::before {
+  content: "";
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin-right: 8px;
+  border: 4px solid transparent;
+  border-left-color: currentColor;
+}
+.sync-session[open] > summary::before {
+  transform: rotate(90deg);
+}

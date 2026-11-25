@@ -151,6 +151,24 @@ test("Gmail : préremplissage, confirmation groupée, CA à coût inconnu, chiff
     page.getByRole("button", { name: "Valider les 3 opérations fiables" }),
   ).toBeEnabled();
   expect(await diskSnapshot(page)).toEqual(before);
+  await expect(page.locator(".sync-session")).not.toHaveAttribute("open", "");
+  await expect(
+    page
+      .getByRole("region", { name: "Opérations fiables" })
+      .locator(".sync-row")
+      .first(),
+  ).toBeInViewport();
+  await page.screenshot({
+    path: `test-results/sync-${test.info().project.name}.png`,
+    animations: "disabled",
+  });
+  const firstRow = await page
+    .getByRole("region", { name: "Opérations fiables" })
+    .locator(".sync-row")
+    .first()
+    .boundingBox();
+  const footer = await page.locator(".sync-footer").boundingBox();
+  expect(firstRow!.y + firstRow!.height).toBeLessThanOrEqual(footer!.y);
   expect(full).not.toContain("private1");
   expect(full).not.toContain("label1");
   await expect(
