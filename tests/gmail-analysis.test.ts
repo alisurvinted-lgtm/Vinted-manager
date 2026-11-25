@@ -94,6 +94,15 @@ describe("Trois événements ciblés et preuve par contenu", () => {
       date: "2026-12-01",
     });
   });
+  it("ne transforme pas un remboursement crédité au porte-monnaie en chiffre d’affaires", () => {
+    const a = analyzeNotification(
+      "La transaction est finalisée",
+      "Article : Pull fictif\nNous avons viré 9,80 € sur ton porte-monnaie Vinted.\nLe remboursement a été effectué.",
+      received,
+    );
+    expect(a.confirmed).toBe(false);
+    expect(a.confidence).toBe("ambiguous");
+  });
   it("ne prend pas le solde du porte-monnaie ou un montant publicitaire pour le prix encaissé", () => {
     const a = analyzeNotification(
       "La transaction est finalisée",

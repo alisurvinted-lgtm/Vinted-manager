@@ -300,6 +300,17 @@ export function analyzeNotification(
       /commande (?:a ete |est )?annulee|transaction (?:a ete |est )?annulee|vente (?:a ete |est )?annulee/.test(
         body,
       );
+  // Un crédit de remboursement ne constitue pas une vente, même sous un objet de finalisation.
+  const correctionConfirmed =
+    /remboursement (?:a ete )?(?:effectue|confirme)|montant rembourse|(?:avons|as? ete) rembourse|(?:commande|transaction|vente) (?:a ete |est )annulee|achat (?:a ete |est )annule/.test(
+      body,
+    );
+  if (correctionConfirmed && !["refund", "cancellation"].includes(kind)) {
+    confirmed = false;
+    notes.push(
+      "Le contenu signale une correction financière : vérifiez sa nature avant de comptabiliser.",
+    );
+  }
   conflict =
     total.conflict ||
     item.conflict ||
