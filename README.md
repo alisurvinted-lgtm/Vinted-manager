@@ -200,6 +200,6 @@ vite.config.ts                 Build et PWA
 
 React, TypeScript, Vite, Tailwind CSS, Lucide React, Dexie et vite-plugin-pwa. Le graphique SVG évite une dépendance supplémentaire. Les seuls accès réseau de l’application chargent ou mettent à jour ses propres fichiers statiques.
 
-## Prototype Gmail désactivé
+## Test personnel de connexion Gmail
 
-La phase de connexion personnelle est préparée dans [prototypes/gmail-oauth/README.md](./prototypes/gmail-oauth/README.md). Elle ne fait pas partie du site publié, ne lit aucun e-mail et ne modifie aucune donnée comptable. La connexion réelle attend la création et la validation du client OAuth par le propriétaire.
+Le [prototype de connexion personnelle](./prototypes/gmail-oauth/README.md) dispose d’une page distincte à `/Vinted-manager/gmail-prototype/`, avec son manifeste « Test Gmail ». Le propriétaire a fourni son identifiant client public et confirmé le mode personnel, l’activation de Gmail API et le scope `gmail.readonly`. La page ne lit aucun message et ne modifie aucune donnée comptable : elle vérifie uniquement l’accès à un champ du profil Gmail, à la demande. Le jeton reste en mémoire et n’entre jamais dans les sauvegardes. Le fonctionnement OAuth réel dans Safari et la PWA installée doit encore être confirmé sur l’iPhone du propriétaire.

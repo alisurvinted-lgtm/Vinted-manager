@@ -26,3 +26,6 @@ ventes-vinted-*.csv
 
 # Prototype OAuth : build séparé, jamais publié par Pages.
 .prototype-build/
+
+# Artefact Pages contrôlé, sans données locales.
+.pages-build/

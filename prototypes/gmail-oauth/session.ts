@@ -195,6 +195,7 @@ export function createProbe(config: ProbeConfig, deps: ProbeDependencies) {
             credential = response.access_token;
             expiresAt = Date.now() + lifetime * 1000;
             expiry = setTimeout(() => {
+              if (attempt !== generation) return;
               clear();
               publish("expired");
             }, lifetime * 1000);

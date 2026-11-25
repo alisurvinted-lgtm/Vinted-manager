@@ -277,11 +277,14 @@ describe("Prototype Gmail en mémoire uniquement", () => {
     x.probe.revoke();
     expect(x.sdk.revoke).not.toHaveBeenCalled();
   });
-  it("refuse la configuration commise tant que le client personnel n’est pas créé", async () => {
+  it("lie la configuration au client public et au mode personnel confirmés par le propriétaire", async () => {
     const real = (await import("../../prototypes/gmail-oauth/config.json"))
       .default;
-    expect(real.clientId).toBe("");
-    expect(real.enabled).toBe(false);
-    expect(isApproved(real)).toBe(false);
+    expect(real.clientId).toBe(
+      "210373554820-k53i9niec2drhtj7t27m3r7lcfbo3lhn.apps.googleusercontent.com",
+    );
+    expect(real.personalModeConfirmed).toBe(true);
+    expect(real.expectedOrigin).toBe(config.expectedOrigin);
+    expect(isApproved({ ...real, securityReviewConfirmed: false })).toBe(false);
   });
 });

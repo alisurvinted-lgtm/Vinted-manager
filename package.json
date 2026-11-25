@@ -19,7 +19,8 @@
     "gmail:preview": "vite preview --config prototypes/gmail-oauth/vite.config.ts",
     "gmail:test": "vitest run tests/gmail-prototype",
     "gmail:test:browser": "playwright test --config prototypes/gmail-oauth/playwright.config.ts",
-    "gmail:verify": "node scripts/verify-gmail-prototype.mjs"
+    "gmail:verify": "node scripts/verify-gmail-prototype.mjs",
+    "pages:package": "npm run verify:dist && npm run gmail:verify && node scripts/package-pages.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.0",

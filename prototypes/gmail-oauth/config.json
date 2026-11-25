@@ -1,7 +1,7 @@
 {
-  "enabled": false,
-  "clientId": "",
+  "enabled": true,
+  "clientId": "210373554820-k53i9niec2drhtj7t27m3r7lcfbo3lhn.apps.googleusercontent.com",
   "expectedOrigin": "https://alisurvinted-lgtm.github.io",
-  "personalModeConfirmed": false,
-  "securityReviewConfirmed": false
+  "personalModeConfirmed": true,
+  "securityReviewConfirmed": true
 }

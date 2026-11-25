@@ -78,13 +78,19 @@ jobs:
       - run: npm test
       - name: Compiler et vérifier les fichiers publiables
         run: npm run build
+      - name: Compiler le prototype du client personnel validé
+        run: npm run gmail:build
       - name: Installer les navigateurs de test
         run: npx playwright install --with-deps chromium webkit
       - name: Tester la confidentialité, la restauration, Pages et le mode hors ligne
         run: npm run test:e2e
+      - name: Tester le prototype Gmail sans autorisation ni message réel
+        run: npm run gmail:test:browser
+      - name: Assembler uniquement les fichiers statiques vérifiés
+        run: npm run pages:package
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
-          path: dist
+          path: .pages-build
           retention-days: 1
   deploy:
     needs: [configure, build]

@@ -121,3 +121,9 @@ Un audit npm dépend de la base d’avis connue au moment du contrôle. Un résu
 Les tests utilisent exclusivement des données synthétiques et des bases/profils temporaires. Ils couvrent le chiffrement et une vérification indépendante par Node/OpenSSL, les mauvais secrets, les altérations, la restauration complète, les requêtes et journaux lors des parcours, la CSP, l’échappement HTML, le contenu du cache, les chemins Pages, le hors ligne et la fermeture complète du navigateur. Ils sont exécutés dans Chromium et WebKit au format iPhone.
 
 L’installation physique sur votre iPhone et les politiques propres à votre appareil ne sont pas vérifiables depuis cet environnement. Les résultats d’exécution et l’état du déploiement figurent dans [VALIDATION.md](./VALIDATION.md).
+
+## Page de test personnel Gmail (phase 1)
+
+Le prototype possède une page et une CSP propres, décrites dans [son rapport](./prototypes/gmail-oauth/README.md). Le 25 novembre 2026, le propriétaire a fourni son identifiant client public et confirmé le mode personnel et le scope de lecture seule. Aucun secret client n’est utilisé. Le code comptable et sa CSP réseau fermée ne chargent pas le SDK Google.
+
+Le test n’accède à aucune base et ne lit aucun message : après consentement, une action distincte peut vérifier uniquement un champ du profil Gmail. Le jeton n’existe qu’en mémoire. La méthode officielle de révocation contacte Google en POST ; une erreur n’est jamais présentée comme une réussite. Le SDK Google constitue un nouveau code de confiance sur la même origine, sans isolation cryptographique vis-à-vis d’IndexedDB ; les règles Google ne limitent pas le scope à Vinted. La configuration en mode personnel est attestée par le propriétaire et la validation physique Safari/PWA reste à réaliser.
