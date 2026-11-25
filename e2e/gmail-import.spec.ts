@@ -1,4 +1,7 @@
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
+// Garder les mocks interceptables ; les parcours PWA et de persistance testent
+// séparément le véritable worker et les rechargements hors ligne.
+test.use({ serviceWorkers: "block" });
 const root = "https://alisurvinted-lgtm.github.io/Vinted-manager/";
 const marker = "__VM_PRIVATE_TEST__ article confirmé";
 async function setup(page: Page, context: BrowserContext) {
