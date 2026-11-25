@@ -23,8 +23,8 @@ export function ImportReview({
   const [busy, setBusy] = useState(false);
   if (!records.length) return null;
   return (
-    <section className="panel import-review">
-      <h2>{records.length} notification(s) à vérifier</h2>
+    <details className="panel import-review">
+      <summary>À vérifier · {records.length} notification(s)</summary>
       <p>
         Ces notifications n’affectent ni le chiffre d’affaires ni le stock. Pour
         une annulation ou un remboursement, utilisez l’examen dédié avant de
@@ -77,6 +77,6 @@ export function ImportReview({
         </p>
       )}
       {error && <ErrorMessage>{error}</ErrorMessage>}
-    </section>
+    </details>
   );
 }

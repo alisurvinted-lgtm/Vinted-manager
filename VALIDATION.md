@@ -1,5 +1,59 @@
 # Validation de Vinted Manager
 
+## Phase 4 indépendante — parcours compact et tableau de bord, non déployée
+
+Départ vérifié : `533d6ba71b782e6e331e2eba75ec9b16e088f52e` sur `feature/phase3-rapprochement`. Branche de cette phase : `feature/phase4-interface`, créée directement depuis ce commit. La phase 3 et `main` restent inchangées. Aucun déploiement ou travail de phase 5 n'est lancé.
+
+### Changements livrés sur la branche
+
+- Synchroniser Gmail devient l'action principale de l'accueil ; l'ajout manuel reste disponible juste après les quatre indicateurs. Résumé compact des achats détectés, annonces, ventes finalisées, opérations à actualiser, corrections et informations à compléter. Un événement ambigu n'est pas présenté comme une vente finalisée confirmée ; les coûts manquants d'une annonce/finalisation partageant la même référence ne sont pas comptés deux fois dans ce résumé.
+- Opérations fiables préremplies et repliées par défaut, détails facultatifs dans le même écran ; anomalies visibles dans « À vérifier », annulations/remboursements dans leur section dédiée. Les notifications à examiner déjà conservées sont regroupées dans un volet à l'accueil. Aucun champ genre/catégorie obligatoire ajouté à l'import.
+- Confirmation globale dans le même dialogue, avec lot figé uniquement en mémoire, nombre d'opérations comptables, éléments à vérifier conservés sans effet et coûts inconnus explicités. Retour possible sans écriture. L'enregistrement exige un second geste réel sur « Confirmer l'importation » ; le contrôle transactionnel et les versions d'articles de phase 3 restent appliqués. Le verrouillage, l'effacement des propositions du lecteur, une erreur d'analyse du lecteur ou de nouvelles propositions abandonnent cette confirmation temporaire. Les corrections financières gardent leur confirmation individuelle existante.
+- Prix d'achat inconnu marqué « Prix d'achat à compléter », sans bloquer une vente encaissée. Le champ rapide existant est réutilisé dans la fiche article ; seul le coût manquant est modifié, dans une transaction, sur la dernière fiche disponible. Un coût déjà complété, y compris par une saisie concurrente, ne peut pas être remplacé par cette action. Dates, frais, références et corrections sont conservés. Aucun prix ni date inventés.
+- Mois courant déterminé à Paris à l'ouverture ; bornes civiles réelles, y compris février bissextile, au lieu d'un jour fictif 31 pour l'attente en fin de mois. Navigation des mois conservée. Le bilan distingue nombre/montant en attente, ventes finalisées, stock actuel, capital actuel, achats du mois, coût des ventes, nettoyage/boost, bénéfice calculable et nombre de résultats inconnus. Le bénéfice total reste « Total à compléter » s'il est incomplet ; la part connue de l'accueil est explicitement marquée partielle. Comparaison et explications accessibles à la demande, graphique existant conservé.
+- Identité visuelle conservée, boutons de navigation mensuelle et de fermeture de 44 px, titres de lignes bornés avec nom complet dans les détails, une seule zone principale de défilement. Espacements ajustés pour garder les quatre indicateurs au-dessus de la navigation, même avec le bénéfice partiel et une hauteur réduite. Zones de sécurité existantes conservées.
+
+Le schéma IndexedDB v4, le format du coffre, les migrations, les sauvegardes, OAuth, les scopes, CSP et la configuration PWA sont identiques à la base. `src/lib/gmail-import.ts`, l'analyseur de phase 2 et les primitives cryptographiques ne changent pas. Les seules évolutions de stockage fonctionnel sont l'action atomique de complément d'un coût et l'utilisation des écritures déjà existantes après confirmation. Aucun contenu Gmail brut, jeton ou nouvelle donnée sensible persistante ajouté.
+
+### Vérifications exécutées
+
+| Contrôle ciblé                     | Résultat                                                                                                                                            |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tests unitaires                    | **188 réussis**, 7 fichiers ; **15 cas ajoutés** sur périodes, résultats incomplets et coût rapide                                                  |
+| Parcours Gmail                     | **16 cas validés**, 8 Chromium et 8 WebKit ; dont 4 nouveaux scénarios exécutés dans les deux moteurs                                               |
+| Parcours de non-régression UI/PWA  | **12 réussis**, 6 Chromium et 6 WebKit                                                                                                              |
+| Total navigateur ciblé             | **28 cas validés**, dont **14 WebKit**                                                                                                              |
+| Builds et TypeScript               | Application sous `/Vinted-manager/` et lecteur compilés avec succès                                                                                 |
+| Contrôles des sources et artefacts | Sources, configuration du lecteur et build vérifiés ; 13 fichiers comptables statiques autorisés, aucun fichier de données comptables dans le build |
+
+Les contrôles navigateur couvrent confirmation globale sans écriture préalable, retour, séparation des anomalies, corrections dédiées, absence de recette pour une annonce, bénéfice à compléter, complément depuis la fiche, absence de champs secondaires imposés, modification de la date estimée, changement de mois/année, conservation des corrections, verrouillage pendant la confirmation, réouverture, manifeste, fermeture complète et hors ligne. Un test a détecté un chevauchement de quelques pixels en hauteur réduite ; les espacements et l'en-tête compact ont été corrigés. Le contrôle WebKit du contenu et des boutons Gmail a été réexécuté après le dernier ajustement de texte : il passe. Le bilan des 28 cas correspond aux derniers résultats de chacun des cas ciblés, avec cette reprise ciblée, et non à une exécution de la suite complète du projet.
+
+Commandes de validation :
+
+```bash
+npx vitest run tests/accounting.test.ts tests/monthly-report.test.ts tests/storage.test.ts tests/gmail-import.test.ts tests/automation.test.ts tests/vault.test.ts tests/crypto-backup.test.ts
+npm run gmail:build
+PAGES_BASE_PATH=/Vinted-manager/ npm run build
+PAGES_BASE_PATH=/Vinted-manager/ npx playwright test e2e/gmail-import.spec.ts --workers=2
+# Reprise du contrôle WebKit après le dernier ajustement d'en-tête :
+PAGES_BASE_PATH=/Vinted-manager/ npx playwright test e2e/gmail-import.spec.ts --grep 'préremplissage, confirmation groupée' --project=webkit-iphone --workers=1
+PAGES_BASE_PATH=/Vinted-manager/ npx playwright test e2e/v2.spec.ts e2e/app.spec.ts e2e/pwa.spec.ts --grep 'bilan mensuel|créer, recharger|PWA disponible|écran mobile|manifeste|fermeture complète' --workers=2
+npm run verify:source
+npm run gmail:verify
+```
+
+Messages et opérations exclusivement synthétiques, comptes OAuth simulés, profils temporaires. Les tests Gmail conservent le worker bloqué pour leur interception ; les tests PWA séparés utilisent le vrai worker. Dans cet environnement, `PLAYWRIGHT_BROWSERS_PATH=/tmp/vinted-browsers` et `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1` sont utilisés pour les navigateurs installés ; aucun test ignoré. Vérification WebKit avec profil iPhone et dimensions additionnelles 393 × 852 et 393 × 659 ; cela ne remplace pas un essai sur iPhone 15 physique en mode PWA.
+
+Limites : aucun accès aux véritables e-mails ni à la base du propriétaire ; aucun test de connexion Google avec son compte. Les limites de rapprochement de phase 3 restent applicables. Stock et capital sont explicitement la situation actuelle, même lorsqu'un ancien mois est consulté ; les ventes en attente sont présentées à la fin du mois choisi. Les tests et l'audit exhaustifs ainsi que la publication restent réservés à la phase 5. Le site en ligne ne contient pas ces modifications intermédiaires.
+
+### Point de reprise pour la phase 5
+
+Partir du commit final de `feature/phase4-interface` indiqué dans le bilan, descendant direct de `533d6ba`, sans revenir à `main`. Lire cette section, puis contrôler l'ensemble des phases cumulées : toutes les suites unitaires, navigateurs de l'application et du lecteur, audit des dépendances et de sécurité, artefact statique et cache. Garder les formats IndexedDB v4/coffre/sauvegardes et le chemin `/Vinted-manager/`.
+
+Vérifier particulièrement la confirmation figée dans `GmailImport.tsx`, l'action `completePurchasePrice`, les bornes `monthRange`, les indicateurs partiels et les essais iPhone/hors ligne. Ensuite seulement, selon l'autorisation de phase 5, intégrer dans la branche de production, déclencher Pages et vérifier le workflow ainsi que le site réellement publié. Ne pas déduire un succès de déploiement des validations locales de cette phase. Prévoir une validation du parcours Google et de la PWA sur l'iPhone physique du propriétaire sans demander sa phrase secrète ni accéder à ses messages privés.
+
+---
+
 ## Phase 3 indépendante — rapprochement et doublons, non déployée
 
 Départ vérifié : `007bcc0e5ffb40be54074955a0455898579b0f81` sur `feature/phase2-filtrage-extraction`. Le travail de phase 3 est conservé sur `feature/phase3-rapprochement`, issue directement de ce commit. La branche de phase 2 et `main` restent inchangées ; aucun workflow de publication n'est lancé.

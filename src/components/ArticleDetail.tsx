@@ -11,6 +11,7 @@ import {
 } from "../lib/accounting";
 import { deleteArticle, saveArticle } from "../lib/db";
 import { ArticleIcon, ErrorMessage, Modal, Status } from "./ui";
+import { PurchaseCostForm } from "./MissingCosts";
 export const dateLabel = (date: string | null) =>
   date === null
     ? "À compléter"
@@ -118,11 +119,30 @@ export function ArticleDetail({
           </div>
         )}
       </dl>
+      {article.purchasePrice === null && (
+        <section
+          className="article-missing-cost"
+          aria-label="Prix d’achat à compléter"
+        >
+          <h3>Prix d’achat à compléter</h3>
+          <p>
+            Ajoutez seulement le total TTC payé, frais d’acquisition inclus.
+          </p>
+          <PurchaseCostForm
+            article={article}
+            onSaved={() =>
+              onSaved("Prix d’achat complété. Bénéfice recalculé.")
+            }
+          />
+        </section>
+      )}
       {sold && (
         <div className="profit-preview">
           <span>Bénéfice net estimé</span>
           <strong className={amountClass(profit(article, rate))}>
-            {money(profit(article, rate))}
+            {article.purchasePrice === null
+              ? "Bénéfice à compléter"
+              : money(profit(article, rate))}
           </strong>
         </div>
       )}

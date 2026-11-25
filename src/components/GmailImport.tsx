@@ -51,6 +51,12 @@ interface Stats {
   running: boolean;
   interrupted: boolean;
 }
+interface Confirmation {
+  choices: ImportChoice[];
+  pending: VerifiedNotification[];
+  ignored: VerifiedNotification[];
+  progress?: SyncProgress;
+}
 function validStats(v: unknown): v is Stats {
   if (!v || typeof v !== "object") return false;
   const s = v as Stats;
@@ -119,11 +125,20 @@ export function GmailImport({
     [expanded, setExpanded] = useState<string | null>(sourceId ?? null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
+    [confirmation, setConfirmation] = useState<Confirmation | null>(null),
     [connected, setConnected] = useState(!initial),
     [connectorOpen, setConnectorOpen] = useState(!initial);
   const iframe = useRef<HTMLIFrameElement>(null),
     busyRef = useRef(false);
+  const confirmationRef = useRef<HTMLElement>(null);
   const [nonce] = useState(() => crypto.randomUUID());
+  useEffect(() => {
+    if (confirmation) {
+      confirmationRef.current?.focus();
+      const dialog = confirmationRef.current?.closest("dialog");
+      if (dialog) dialog.scrollTop = 0;
+    }
+  }, [confirmation]);
   const known = records
     .filter((r) => r.resolved || (r.proposal && r.parserVersion === 1))
     .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))
@@ -203,6 +218,7 @@ export function GmailImport({
         return;
       }
       if (data.type === "vm:gmail-clear") {
+        setConfirmation(null);
         if (!initial) {
           setRows([]);
           setStats(null);
@@ -211,6 +227,7 @@ export function GmailImport({
         return;
       }
       if (data.type === "vm:gmail-analysis-error") {
+        setConfirmation(null);
         setError(
           "L’analyse locale n’a pas pu être terminée. Aucune opération n’a été enregistrée.",
         );
@@ -228,6 +245,7 @@ export function GmailImport({
           Array.isArray(data.items) && data.items.length === 0
             ? []
             : validateSelection(data.items);
+        setConfirmation(null);
         setRows((previous) =>
           selected.map(
             (item) =>
@@ -320,6 +338,41 @@ export function GmailImport({
   const review = plans.filter(
     (p) => !p.reliable && !p.isCorrection && !p.row.ignored,
   );
+  const active = plans.filter((p) => !p.row.ignored);
+  const missingCosts = active.filter(
+    (p) =>
+      ["sale_final", "sale_announced"].includes(p.item.kind) &&
+      p.item.purchasePrice === null,
+  );
+  function prepareConfirmation(event: MouseEvent) {
+    if (
+      !event.isTrusted ||
+      busyRef.current ||
+      !db.isUnlocked ||
+      stats?.running ||
+      stats?.interrupted ||
+      error.startsWith("Saisissez")
+    )
+      return;
+    const selectedIds = new Set(ready.map((p) => p.item.sourceKey));
+    // Cet aperçu reste uniquement en mémoire et fige le lot présenté à confirmer.
+    setConfirmation({
+      choices: ready.map((p) => p.choice),
+      pending: plans
+        .filter((p) => !selectedIds.has(p.item.sourceKey) && !p.row.ignored)
+        .map((p) => p.item),
+      ignored: plans.filter((p) => p.row.ignored).map((p) => p.item),
+      ...(stats
+        ? {
+            progress: {
+              period: stats.period,
+              pageToken: stats.nextPageToken,
+              complete: stats.complete,
+            },
+          }
+        : {}),
+    });
+  }
   function update(id: string, patch: Partial<VerifiedNotification>) {
     setRows((all) =>
       all.map((r) =>
@@ -381,27 +434,16 @@ export function GmailImport({
       error.startsWith("Saisissez")
     )
       return;
-    const selected = only
-      ? plans.filter((p) => p.item.sourceKey === only)
-      : ready;
-    const choices = selected.map((p) => p.choice);
-    const selectedIds = new Set(selected.map((p) => p.item.sourceKey));
-    const pending = only
-      ? []
-      : plans
-          .filter((p) => !selectedIds.has(p.item.sourceKey) && !p.row.ignored)
-          .map((p) => p.item);
-    const ignored = only
-      ? []
-      : plans.filter((p) => p.row.ignored).map((p) => p.item);
-    const progress: SyncProgress | undefined =
-      stats && !stats.interrupted && !only
-        ? {
-            period: stats.period,
-            pageToken: stats.nextPageToken,
-            complete: stats.complete,
-          }
-        : undefined;
+    if (!only && !confirmation) return;
+    const selected = only ? plans.filter((p) => p.item.sourceKey === only) : [];
+    const { choices, pending, ignored, progress } = only
+      ? {
+          choices: selected.map((p) => p.choice),
+          pending: [],
+          ignored: [],
+          progress: undefined,
+        }
+      : confirmation!;
     if (only) {
       const p = selected[0];
       if (!p || p.choice.mode === "review") {
@@ -505,6 +547,7 @@ export function GmailImport({
         <div className="sync-row-actions">
           <button
             className="text-button"
+            aria-expanded={open}
             onClick={() => setExpanded(open ? null : item.sourceKey)}
           >
             {open ? "Réduire" : "Modifier / détails"}
@@ -522,6 +565,12 @@ export function GmailImport({
             {row.ignored ? "Rétablir" : "Ignorer"}
           </button>
         </div>
+        {item.purchasePrice === null &&
+          ["sale_announced", "sale_final"].includes(kind) && (
+            <p className="sync-missing-cost">
+              Prix d’achat à compléter · import possible
+            </p>
+          )}
         {open && (
           <div className="sync-editor">
             <p className="field-help">
@@ -921,119 +970,202 @@ export function GmailImport({
   }
   return (
     <Modal
-      title="Synchroniser Gmail"
-      subtitle="Analyse locale · validation groupée avant enregistrement"
+      title={confirmation ? "Confirmer l’importation" : "Synchroniser Gmail"}
+      subtitle={
+        confirmation
+          ? "Dernière vérification avant enregistrement"
+          : "Vérifiez seulement les anomalies."
+      }
       onClose={close}
       wide
       closeDisabled={busy}
     >
       <div className="sync-workspace">
-        <p className="sync-privacy">
-          {stats && !stats.running
-            ? "Lecture terminée. Rien n’est enregistré avant validation."
-            : "Lecture locale. Les opérations seront enregistrées chiffrées après validation ; les e-mails restent en mémoire."}
-        </p>
-        {connected ? (
-          <details
-            className="sync-session"
-            open={connectorOpen}
-            onToggle={(e) => setConnectorOpen(e.currentTarget.open)}
+        <div hidden={!!confirmation}>
+          <p className="sync-privacy">
+            {stats && !stats.running
+              ? "Lecture terminée. Rien n’est enregistré avant validation."
+              : "Lecture locale. Les opérations seront enregistrées chiffrées après validation ; les e-mails restent en mémoire."}
+          </p>
+          {connected ? (
+            <details
+              className="sync-session"
+              open={connectorOpen}
+              onToggle={(e) => setConnectorOpen(e.currentTarget.open)}
+            >
+              <summary>Connexion, période et révocation</summary>
+              <iframe
+                ref={iframe}
+                title="Connexion et analyse Gmail"
+                src={GMAIL_FRAME_URL}
+                onLoad={sendSession}
+                className="sync-connector"
+                scrolling="no"
+                style={{ height }}
+                referrerPolicy="no-referrer"
+              />
+            </details>
+          ) : (
+            <button
+              className="button secondary"
+              onClick={() => setConnected(true)}
+            >
+              Relancer une synchronisation Gmail
+            </button>
+          )}
+          {(rows.length > 0 || stats) && (
+            <>
+              <div className="sync-summary" aria-live="polite">
+                {(
+                  [
+                    [
+                      "Achats détectés",
+                      active.filter((p) => p.item.kind === "purchase").length,
+                    ],
+                    [
+                      "Ventes annoncées",
+                      active.filter((p) => p.item.kind === "sale_announced")
+                        .length,
+                    ],
+                    [
+                      "Ventes finalisées",
+                      active.filter((p) => p.item.kind === "sale_final").length,
+                    ],
+                    [
+                      "À actualiser",
+                      ready.filter(
+                        (p) =>
+                          !!p.choice.articleId &&
+                          ["sell", "announce", "link"].includes(p.choice.mode),
+                      ).length,
+                    ],
+                    ["Annulations / remboursements", corrections.length],
+                    [
+                      "À compléter",
+                      new Set(
+                        [...review, ...missingCosts].map((p) => {
+                          const kind = p.item.detectedKind ?? p.item.kind;
+                          const family = [
+                            "sale_announced",
+                            "sale_final",
+                          ].includes(kind)
+                            ? "sale"
+                            : kind;
+                          return p.item.referenceKey
+                            ? `${family}:${p.item.referenceKey}`
+                            : p.item.sourceKey;
+                        }),
+                      ).size,
+                    ],
+                  ] as const
+                ).map(([label, n]) => (
+                  <div key={label}>
+                    <strong>{n}</strong>
+                    <span>{label}</span>
+                  </div>
+                ))}
+              </div>
+              {!!stats?.known && (
+                <p className="field-help">
+                  {stats.known} notification(s) déjà connues, écartées.
+                </p>
+              )}
+              {stats && !stats.complete && (
+                <p className="info-box">
+                  {stats.running
+                    ? "Analyse en cours…"
+                    : stats.interrupted
+                      ? "Synchronisation interrompue : relancez pour terminer."
+                      : "Parcours partiel : ce lot peut être validé, puis la suite sera reprise sans doublons."}
+                </p>
+              )}
+              <section aria-label="Opérations fiables">
+                <details className="sync-review-section sync-ready-section">
+                  <summary>
+                    {ready.length} opération(s) préremplie(s) · Voir / modifier
+                  </summary>
+                  {ready.map(card)}
+                </details>
+              </section>
+              {review.length > 0 && (
+                <details className="sync-review-section sync-anomalies" open>
+                  <summary>À vérifier · {review.length} opération(s)</summary>
+                  {review.map(card)}
+                </details>
+              )}
+              {corrections.length > 0 && (
+                <details className="sync-review-section" open={!!initial}>
+                  <summary>
+                    {corrections.length} correction(s), annulation(s) ou
+                    remboursement(s)
+                  </summary>
+                  {corrections.map(card)}
+                </details>
+              )}
+              {plans.some((p) => p.row.ignored) && (
+                <details className="sync-review-section">
+                  <summary>Opérations ignorées</summary>
+                  {plans.filter((p) => p.row.ignored).map(card)}
+                </details>
+              )}
+            </>
+          )}
+        </div>
+        {confirmation && (
+          <section
+            ref={confirmationRef}
+            className="sync-confirmation"
+            aria-label="Résumé avant enregistrement"
+            tabIndex={-1}
           >
-            <summary>Connexion, période et révocation</summary>
-            <iframe
-              ref={iframe}
-              title="Connexion et analyse Gmail"
-              src={GMAIL_FRAME_URL}
-              onLoad={sendSession}
-              className="sync-connector"
-              scrolling="no"
-              style={{ height }}
-              referrerPolicy="no-referrer"
-            />
-          </details>
-        ) : (
-          <button
-            className="button secondary"
-            onClick={() => setConnected(true)}
-          >
-            Relancer une synchronisation Gmail
-          </button>
-        )}
-        {rows.length > 0 && (
-          <>
-            <div className="sync-summary" aria-live="polite">
-              {(
-                [
-                  [
-                    "Achats",
-                    plans.filter((p) => p.item.kind === "purchase").length,
-                  ],
-                  [
-                    "Ventes en cours",
-                    plans.filter((p) => p.item.kind === "sale_announced")
-                      .length,
-                  ],
-                  [
-                    "Ventes encaissées",
-                    plans.filter((p) => p.item.kind === "sale_final").length,
-                  ],
-                  ["Déjà connues", stats?.known ?? 0],
-                  ["Prêtes", ready.length],
-                  ["À vérifier", review.length + corrections.length],
-                ] as const
-              ).map(([label, n]) => (
-                <div key={label}>
-                  <strong>{n}</strong>
-                  <span>{label}</span>
-                </div>
-              ))}
-            </div>
-            {stats && !stats.complete && (
+            <p>
+              <strong>
+                {confirmation.choices.length} opération(s) à enregistrer.
+              </strong>{" "}
+              Les annonces restent en attente ; seules les ventes finalisées
+              comptent dans les encaissements.
+            </p>
+            <p>
+              {confirmation.pending.length} élément(s) à vérifier seront
+              conservés sans effet comptable. {confirmation.ignored.length}{" "}
+              notification(s) ignorée(s).
+            </p>
+            {confirmation.choices.some(
+              (c) =>
+                c.item.kind === "sale_final" && c.item.purchasePrice === null,
+            ) && (
               <p className="info-box">
-                {stats.running
-                  ? "Analyse en cours…"
-                  : stats.interrupted
-                    ? "Synchronisation interrompue : relancez pour terminer."
-                    : "Parcours partiel : ce lot peut être validé, puis la suite sera reprise sans doublons."}
+                Certains prix d’achat restent à compléter. Les ventes seront
+                enregistrées avec un bénéfice à compléter, jamais avec un achat
+                à zéro.
               </p>
             )}
-            <section aria-label="Opérations fiables">
-              <h3>{ready.length} opération(s) prête(s)</h3>
-              {plans.filter((p) => p.reliable || p.row.ignored).map(card)}
-            </section>
-            {review.length > 0 && (
-              <details className="sync-review-section" open={!!initial}>
-                <summary>
-                  {review.length} opération(s) à compléter ou vérifier
-                </summary>
-                {review.map(card)}
-              </details>
+            {confirmation.progress && !confirmation.progress.complete && (
+              <p className="info-box">
+                Ce lot est partiel. Une nouvelle synchronisation sera nécessaire
+                pour parcourir la suite.
+              </p>
             )}
-            {corrections.length > 0 && (
-              <details className="sync-review-section" open={!!initial}>
-                <summary>
-                  {corrections.length} correction(s), annulation(s) ou
-                  remboursement(s)
-                </summary>
-                {corrections.map(card)}
-              </details>
-            )}
-          </>
+            <p className="field-help">
+              Enregistrement chiffré sur cet appareil. Aucun e-mail brut n’est
+              conservé.
+            </p>
+          </section>
         )}
         {error && <ErrorMessage>{error}</ErrorMessage>}
         {(rows.length > 0 || stats) && (
           <div className="sync-footer">
             <p>
-              {ready.length} opération(s) prêtes ·{" "}
-              {review.length + corrections.length} à vérifier, sans effet
-              automatique.
+              {confirmation
+                ? "Rien n’est enregistré avant votre confirmation."
+                : `${ready.length} opération(s) prêtes · ${review.length + corrections.length} à vérifier.`}
             </p>
             <button
               className="button secondary"
               disabled={busy}
-              onClick={close}
+              onClick={confirmation ? () => setConfirmation(null) : close}
             >
-              Annuler
+              {confirmation ? "Retour" : "Annuler"}
             </button>
             <button
               className="button primary"
@@ -1043,13 +1175,17 @@ export function GmailImport({
                 stats?.interrupted ||
                 error.startsWith("Saisissez")
               }
-              onClick={(e) => void commit(e)}
+              onClick={(e) =>
+                confirmation ? void commit(e) : prepareConfirmation(e)
+              }
             >
               {busy
                 ? "Enregistrement chiffré…"
-                : ready.length
-                  ? `Valider les ${ready.length} opérations fiables`
-                  : "Conserver la progression et les éléments à vérifier"}
+                : confirmation
+                  ? "Confirmer l’importation"
+                  : ready.length
+                    ? `Valider les ${ready.length} opérations fiables`
+                    : "Conserver la progression et les éléments à vérifier"}
             </button>
           </div>
         )}

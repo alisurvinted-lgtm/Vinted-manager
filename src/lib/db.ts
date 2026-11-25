@@ -5,6 +5,33 @@ import { defaultSettings, type Article, type ArticleInput } from "./model";
 import { articleDetails, validateInput } from "./validation";
 
 export const db = new ManagerDB();
+// Saisie rapide : ne modifier que le coût encore inconnu de la dernière fiche.
+export async function completePurchasePrice(
+  id: string,
+  purchasePrice: number,
+  database = db,
+) {
+  return database.transaction("rw", async (tx) => {
+    const current = await tx.articles.get(id);
+    if (!current || current.purchasePrice !== null)
+      throw new Error(
+        "Le prix d’achat a déjà été complété ou l’article n’existe plus.",
+      );
+    const now = new Date().toISOString();
+    const article = { ...current, purchasePrice, updatedAt: now };
+    validateInput(article);
+    await tx.articles.put(article);
+    await completeReturnedCosts(tx, article);
+    await tx.activities.add({
+      id: crypto.randomUUID(),
+      articleId: id,
+      name: article.name,
+      type: "updated",
+      date: now,
+      amount: article.status === "sold" ? article.salePrice : purchasePrice,
+    });
+  });
+}
 export async function saveArticle(
   input: ArticleInput,
   id?: string,

@@ -92,7 +92,7 @@ export default function App() {
   const [view, setView] = useState<View>(() =>
     location.hash === "#gmail-import" ? { type: "gmail-import" } : null,
   );
-  const [month, setMonth] = useState(currentMonth());
+  const [month, setMonth] = useState(currentMonth);
   const [year, setYear] = useState(Number(currentMonth().slice(0, 4)));
   const [filter, setFilter] = useState<"all" | "stock" | "sold">("all");
   const [search, setSearch] = useState("");
@@ -150,7 +150,7 @@ export default function App() {
       : undefined;
   const years = [
     ...new Set([
-      new Date().getFullYear(),
+      Number(currentMonth().slice(0, 4)),
       year,
       ...articles
         .filter((a) => a.purchaseDate)
@@ -315,7 +315,17 @@ export default function App() {
                     : "L’essentiel pour comprendre et faire grandir votre activité."}
               </p>
             </div>
-            <AddButton onClick={() => setView({ type: "add" })} />
+            {tab === "home" ? (
+              <button
+                className="button primary add-button"
+                disabled={!online}
+                onClick={() => setView({ type: "gmail-import" })}
+              >
+                <Download size={19} /> Synchroniser Gmail
+              </button>
+            ) : (
+              <AddButton onClick={() => setView({ type: "add" })} />
+            )}
           </div>
           {!data ? (
             <div className="loading-state" role="status">
@@ -327,7 +337,8 @@ export default function App() {
                 <>
                   <div className="section-toolbar">
                     <h2>
-                      Ce mois-ci <span className="period-dot">·</span>{" "}
+                      {month === currentMonth() ? "Ce mois-ci" : "Mon bilan"}{" "}
+                      <span className="period-dot">·</span>{" "}
                       <span className="muted month-heading">
                         {monthName(month)}
                       </span>
@@ -367,7 +378,7 @@ export default function App() {
                     <Metric
                       title="Chiffre d’affaires"
                       amount={money(summary.revenue)}
-                      caption={`${summary.soldCount} article${summary.soldCount > 1 ? "s vendus" : " vendu"} ce mois-ci`}
+                      caption={`${summary.soldCount} vente(s) finalisée(s) · encaissé`}
                       icon={ArrowUpRight}
                       featured
                     />
@@ -381,7 +392,7 @@ export default function App() {
                       }
                       caption={
                         summary.incompleteProfitCount
-                          ? `${summary.completeSoldCount} ventes calculées · ${summary.incompleteProfitCount} bénéfices à compléter`
+                          ? `Partiel : ${summary.completeSoldCount} calculable${summary.completeSoldCount > 1 ? "s" : ""} · ${summary.incompleteProfitCount} à compléter`
                           : "Après achats, frais et cotisations"
                       }
                       icon={ArrowDownLeft}
@@ -408,16 +419,10 @@ export default function App() {
                     />
                   </div>
                   <div className="gmail-entry">
-                    <button
-                      className="button secondary"
-                      disabled={!online}
-                      onClick={() => setView({ type: "gmail-import" })}
-                    >
-                      Synchroniser Gmail
-                    </button>
+                    <AddButton onClick={() => setView({ type: "add" })} />
                     <span>
                       {online
-                        ? "Vérifier puis confirmer, sans import automatique."
+                        ? "Pour une trouvaille à saisir manuellement."
                         : "La connexion Gmail nécessite Internet. Vos articles restent disponibles hors ligne."}
                     </span>
                   </div>

@@ -5,9 +5,18 @@ export function monthLabel(month: string): string {
   if (!isMonth(month))
     throw new Error("Choisissez un mois et une année valides.");
   return new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Europe/Paris",
     month: "long",
     year: "numeric",
-  }).format(new Date(`${month}-15T12:00:00`));
+  }).format(new Date(`${month}-15T12:00:00Z`));
+}
+// Dates civiles Europe/Paris ; aucun jour fictif « 31 » pour février ou avril.
+export function monthRange(month: string) {
+  if (!isMonth(month))
+    throw new Error("Choisissez un mois et une année valides.");
+  const [year, number] = month.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(year, number, 0)).getUTCDate();
+  return { first: `${month}-01`, last: `${month}-${lastDay}` };
 }
 export function moveMonth(month: string, offset: number): string | null {
   if (!isMonth(month) || !Number.isSafeInteger(offset))

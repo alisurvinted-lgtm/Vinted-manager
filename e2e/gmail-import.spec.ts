@@ -50,7 +50,11 @@ const messages = [
     body: `Article : ${marker}\nRemboursement effectué.\nMontant remboursé : 1,00 €\nRéférence de transaction : FICTIF-SALE-202`,
   },
 ];
-export async function setup(page: Page, context: BrowserContext) {
+export async function setup(
+  page: Page,
+  context: BrowserContext,
+  selectedIds?: string[],
+) {
   const outbound: { url: string; body: string }[] = [];
   const full: string[] = [];
   context.on("request", (r) =>
@@ -78,7 +82,11 @@ export async function setup(page: Page, context: BrowserContext) {
       const url = new URL(route.request().url());
       let data: unknown;
       if (url.pathname.endsWith("/messages"))
-        data = { messages: messages.map((m) => ({ id: m.id })) };
+        data = {
+          messages: messages
+            .filter((m) => !selectedIds || selectedIds.includes(m.id))
+            .map((m) => ({ id: m.id })),
+        };
       else {
         const id = url.pathname.split("/").at(-1),
           m = messages.find((m) => m.id === id)!;
@@ -152,6 +160,12 @@ test("Gmail : préremplissage, confirmation groupée, CA à coût inconnu, chiff
   ).toBeEnabled();
   expect(await diskSnapshot(page)).toEqual(before);
   await expect(page.locator(".sync-session")).not.toHaveAttribute("open", "");
+  await expect(page.locator(".sync-ready-section")).not.toHaveAttribute(
+    "open",
+    "",
+  );
+  await expect(page.locator(".sync-anomalies")).toHaveAttribute("open", "");
+  await page.locator(".sync-ready-section>summary").click();
   await expect(
     page
       .getByRole("region", { name: "Opérations fiables" })
@@ -203,6 +217,10 @@ test("Gmail : préremplissage, confirmation groupée, CA à coût inconnu, chiff
   await page
     .getByRole("button", { name: "Valider les 3 opérations fiables" })
     .click();
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Confirmer l’importation", exact: true })
+    .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByLabel("Mois sélectionné").fill("2026-11");
   await expect(page.locator(".metric-value").nth(0)).toContainText("27,80");
@@ -228,6 +246,9 @@ test("Gmail : préremplissage, confirmation groupée, CA à coût inconnu, chiff
     .getByRole("button", {
       name: "Conserver la progression et les éléments à vérifier",
     })
+    .click();
+  await page
+    .getByRole("button", { name: "Confirmer l’importation", exact: true })
     .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByLabel("Mois sélectionné").fill("2026-11");
@@ -289,8 +310,13 @@ test("Gmail : correction dédiée, confirmation refusée puis remboursement trac
   await page
     .getByRole("button", { name: "Valider les 3 opérations fiables" })
     .click();
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Confirmer l’importation", exact: true })
+    .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   // Les corrections conservées se retrouvent hors ligne depuis À vérifier.
+  await page.locator(".import-review>summary").click();
   await page
     .locator(".import-review")
     .getByRole("button", { name: "Compléter / examiner" })
@@ -319,6 +345,7 @@ test("phase 2 : date Gmail préremplie, estimation modifiable et mois d’encais
   await setup(page, context);
   const before = await diskSnapshot(page);
   await sync(page);
+  await page.locator(".sync-ready-section>summary").click();
   const sale = page
     .getByRole("region", { name: "Opérations fiables" })
     .locator(".sync-row")
@@ -332,9 +359,272 @@ test("phase 2 : date Gmail préremplie, estimation modifiable et mois d’encais
   await page
     .getByRole("button", { name: "Valider les 3 opérations fiables" })
     .click();
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Confirmer l’importation", exact: true })
+    .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByLabel("Mois sélectionné").fill("2026-11");
   await expect(page.locator(".metric-value").first()).toContainText("0,00");
   await page.getByLabel("Mois sélectionné").fill("2026-12");
   await expect(page.locator(".metric-value").first()).toContainText("27,80");
+});
+
+test("phase 4 : aperçu compact, confirmation globale réversible et complément du prix depuis l’article", async ({
+  page,
+  context,
+}) => {
+  await page.setViewportSize({ width: 393, height: 852 });
+  await setup(page, context);
+  await sync(page);
+  const before = await diskSnapshot(page);
+  const summary = page.locator(".sync-summary");
+  for (const label of [
+    "Achats détectés",
+    "Ventes annoncées",
+    "Ventes finalisées",
+    "À actualiser",
+    "Annulations / remboursements",
+    "À compléter",
+  ]) {
+    await expect(summary).toContainText(label);
+  }
+  await expect(summary.locator("strong")).toHaveText([
+    "1",
+    "1",
+    "1",
+    "0",
+    "1",
+    "2",
+  ]);
+  await expect(page.locator(".sync-editor")).toHaveCount(0);
+  await expect(page.locator(".sync-anomalies")).toContainText("À vérifier");
+  await expect(page.getByRole("dialog").locator("input:visible")).toHaveCount(
+    0,
+  );
+  await page
+    .getByRole("button", { name: "Valider les 3 opérations fiables" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Confirmer l’importation" }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await expect(
+    page.getByRole("region", { name: "Résumé avant enregistrement" }),
+  ).toBeFocused();
+  await expect(page.locator(".sync-confirmation")).toContainText(
+    "3 opération(s)",
+  );
+  await expect(page.locator(".sync-confirmation")).toContainText(
+    "2 élément(s) à vérifier",
+  );
+  expect(await diskSnapshot(page)).toEqual(before);
+  await page.getByRole("button", { name: "Retour", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Synchroniser Gmail" }),
+  ).toBeVisible();
+  expect(await diskSnapshot(page)).toEqual(before);
+  await page
+    .getByRole("button", { name: "Valider les 3 opérations fiables" })
+    .click();
+  await page
+    .getByRole("button", { name: "Confirmer l’importation", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByLabel("Mois sélectionné").fill("2026-11");
+  await expect(page.locator(".metric-value").first()).toContainText("27,80");
+  await page
+    .getByRole("navigation", { name: /Navigation/ })
+    .filter({ visible: true })
+    .getByRole("button", { name: "Mes articles", exact: true })
+    .click();
+  await page.locator(".article-row").filter({ hasText: marker }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await expect(
+    page.getByRole("heading", {
+      name: "Prix d’achat à compléter",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.locator(".profit-preview")).toContainText(
+    "Bénéfice à compléter",
+  );
+  await page.getByLabel(`Coût TTC de ${marker}`, { exact: true }).fill("12,00");
+  await page.getByRole("button", { name: "Compléter", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page
+    .getByRole("navigation", { name: /Navigation/ })
+    .filter({ visible: true })
+    .getByRole("button", { name: "Accueil", exact: true })
+    .click();
+  await expect(page.locator(".metric-value").nth(1)).toContainText("12,38");
+  await page.getByRole("button", { name: "Verrouiller", exact: true }).click();
+  await openVault(page);
+  await page.getByLabel("Mois sélectionné").fill("2026-11");
+  await expect(page.locator(".metric-value").nth(1)).toContainText("12,38");
+  expect(JSON.stringify(await diskSnapshot(page))).not.toContain(marker);
+});
+
+test("phase 4 : le verrouillage abandonne une importation encore à confirmer", async ({
+  page,
+  context,
+}) => {
+  await page.clock.install();
+  await setup(page, context);
+  await sync(page);
+  const before = await diskSnapshot(page);
+  await page
+    .getByRole("button", { name: "Valider les 3 opérations fiables" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Confirmer l’importation" }),
+  ).toBeVisible();
+  await page.clock.fastForward(5 * 60 * 1000 + 1000);
+  await expect(
+    page.getByRole("heading", { name: "Déverrouiller mon espace" }),
+  ).toBeVisible();
+  await expect(page.locator("iframe")).toHaveCount(0);
+  await expect(page.locator(".sync-confirmation")).toHaveCount(0);
+  expect(await diskSnapshot(page)).toEqual(before);
+  await openVault(page);
+  await expect(page.locator(".metric-value").first()).toContainText("0,00");
+});
+
+test("phase 4 : bilan partiel, mois de Paris, bornes réelles et quatre indicateurs sur iPhone 15", async ({
+  page,
+  context,
+}) => {
+  await page.clock.install({ time: new Date("2026-12-31T23:30:00Z") });
+  await page.setViewportSize({ width: 393, height: 852 });
+  await setup(page, context);
+  await expect(page.getByLabel("Mois sélectionné")).toHaveValue("2027-01");
+  await sync(page);
+  await page
+    .getByRole("button", { name: "Valider les 3 opérations fiables" })
+    .click();
+  await page
+    .getByRole("button", { name: "Confirmer l’importation", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Ajouter un article", exact: true })
+    .first()
+    .click();
+  await page
+    .getByLabel("Nom de l’article")
+    .fill("__VM_PRIVATE_TEST__ Vente au coût connu");
+  await page.getByLabel("Prix d’achat TTC", { exact: true }).fill("15,00");
+  await page.getByLabel("Date d’achat", { exact: true }).fill("2026-10-01");
+  await page.getByRole("button", { name: "Vendu", exact: true }).click();
+  await page.getByLabel("Prix de vente", { exact: true }).fill("35,00");
+  await page.getByLabel("Date de vente", { exact: true }).fill("2026-11-28");
+  await page
+    .getByRole("button", { name: "Ajouter un frais", exact: true })
+    .click();
+  await page.getByLabel("Montant du frais 1").fill("2,00");
+  await page
+    .getByRole("button", { name: "Ajouter un frais", exact: true })
+    .click();
+  await page.getByLabel("Type du frais 2").selectOption("Nettoyage");
+  await page.getByLabel("Montant du frais 2").fill("1,00");
+  await page
+    .getByRole("button", { name: "Enregistrer l’article", exact: true })
+    .click();
+  await page.getByLabel("Mois sélectionné").fill("2026-11");
+  await expect(page.locator(".metric-value").first()).toContainText("62,80");
+  await expect(page.locator(".metric-value").nth(1)).toContainText("12,69");
+  await expect(page.locator(".metric-caption").nth(1)).toContainText("Partiel");
+  const facts = page.locator(".monthly-facts>div");
+  await expect(
+    facts.filter({ hasText: "Bénéfices à compléter" }).locator("dd"),
+  ).toHaveText("1");
+  await expect(
+    facts.filter({ hasText: "Ventes finalisées" }).locator("dd"),
+  ).toHaveText("2");
+  await expect(
+    facts.filter({ hasText: "Ventes en attente" }).locator("dd"),
+  ).toHaveText("0");
+  await expect(page.locator(".monthly-result>strong")).toHaveText(
+    "Total à compléter",
+  );
+  await expect(page.getByTestId("monthly-purchases")).toContainText("7,21");
+  const before = await diskSnapshot(page);
+  for (const height of [852, 659]) {
+    await page.setViewportSize({ width: 393, height });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const nav = document
+            .querySelector(".bottom-nav")!
+            .getBoundingClientRect();
+          return (
+            [...document.querySelectorAll(".metrics-grid .metric-card")]
+              .slice(0, 4)
+              .every((el) => {
+                const r = el.getBoundingClientRect();
+                return (
+                  r.top >= 0 &&
+                  r.bottom <= nav.top &&
+                  r.left >= 0 &&
+                  r.right <= innerWidth
+                );
+              }) && document.documentElement.scrollWidth <= innerWidth
+          );
+        }),
+      )
+      .toBe(true);
+  }
+  await page.screenshot({
+    path: `test-results/dashboard-phase4-${test.info().project.name}.png`,
+    animations: "disabled",
+  });
+  await page.getByRole("button", { name: "Mois suivant", exact: true }).click();
+  await expect(page.getByLabel("Mois sélectionné")).toHaveValue("2026-12");
+  await expect(page.locator(".metric-value").first()).toContainText("0,00");
+  await page
+    .getByRole("button", { name: "Mois précédent", exact: true })
+    .click();
+  await expect(page.locator(".metric-value").first()).toContainText("62,80");
+  await page.getByLabel("Mois sélectionné").fill("2028-02");
+  await expect(page.locator(".monthly-report .panel-heading p")).toHaveText(
+    "Du 1er au 29 février 2028 · heure de Paris",
+  );
+  await page.getByRole("button", { name: "Mois suivant", exact: true }).click();
+  await expect(page.locator(".monthly-report .panel-heading p")).toHaveText(
+    "Du 1er au 31 mars 2028 · heure de Paris",
+  );
+  expect(await diskSnapshot(page)).toEqual(before);
+});
+
+test("phase 4 : une annonce reste en attente, sans recette ni bénéfice fictifs", async ({
+  page,
+  context,
+}) => {
+  await setup(page, context, ["announce1", "receipt1"]);
+  await sync(page);
+  await page
+    .getByRole("button", { name: "Valider les 2 opérations fiables" })
+    .click();
+  await page
+    .getByRole("button", { name: "Confirmer l’importation", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByLabel("Mois sélectionné").fill("2026-11");
+  await expect(page.locator(".metric-value").first()).toContainText("0,00");
+  await expect(page.locator(".metric-value").nth(3)).toHaveText("2");
+  const facts = page.locator(".monthly-facts>div");
+  await expect(
+    facts.filter({ hasText: "Ventes en attente" }).locator("dd"),
+  ).toHaveText("1");
+  await expect(facts.filter({ hasText: "Ventes en attente" })).toContainText(
+    "27,80",
+  );
+  await expect(
+    facts.filter({ hasText: "Ventes finalisées" }).locator("dd"),
+  ).toHaveText("0");
+  await expect(
+    facts.filter({ hasText: "Capital dans le stock" }).locator("dd"),
+  ).toHaveText("À compléter");
+  await expect(page.getByTestId("monthly-purchases")).toContainText("7,21");
 });

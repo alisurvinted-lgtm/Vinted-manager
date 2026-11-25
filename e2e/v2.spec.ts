@@ -134,6 +134,7 @@ test("V2 : bilan mensuel, coût des ventes distinct des achats, historique, ann�
       .locator("dd"),
   ).toHaveText(/1,00/);
   await expect(report.locator(".monthly-result>strong")).toHaveText(/12,69/);
+  await report.locator(".monthly-explanations>summary").click();
   await expect(
     report.getByText("Comparaison avec décembre 2025"),
   ).toBeVisible();

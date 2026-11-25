@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import type { Article } from "../lib/model";
-import { saveArticle } from "../lib/db";
+import { completePurchasePrice } from "../lib/db";
 import { parseMoney } from "../lib/accounting";
 import { ErrorMessage } from "./ui";
 export function MissingCosts({ articles }: { articles: Article[] }) {
@@ -14,7 +14,7 @@ export function MissingCosts({ articles }: { articles: Article[] }) {
         restent indéterminés ; un prix manquant ne vaut jamais zéro.
       </p>
       {missing.slice(0, 20).map((a) => (
-        <Cost key={a.id} article={a} />
+        <PurchaseCostForm key={a.id} article={a} />
       ))}
       {missing.length > 20 && (
         <p>
@@ -25,7 +25,13 @@ export function MissingCosts({ articles }: { articles: Article[] }) {
     </details>
   );
 }
-function Cost({ article }: { article: Article }) {
+export function PurchaseCostForm({
+  article,
+  onSaved,
+}: {
+  article: Article;
+  onSaved?: () => void;
+}) {
   const [value, setValue] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -35,13 +41,11 @@ function Cost({ article }: { article: Article }) {
     setBusy(true);
     setError("");
     try {
-      await saveArticle(
-        { ...article, purchasePrice: parseMoney(value) },
-        article.id,
-      );
+      await completePurchasePrice(article.id, parseMoney(value));
+      onSaved?.();
     } catch {
       setError(
-        "Enregistrement impossible. Vérifiez le montant puis réessayez.",
+        "Enregistrement impossible. Vérifiez le montant et rechargez la fiche si ce prix a déjà été complété.",
       );
     } finally {
       setBusy(false);

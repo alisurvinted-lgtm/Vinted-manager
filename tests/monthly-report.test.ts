@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { changePercent, monthlyReport } from "../src/lib/accounting";
-import { isMonth, monthLabel, moveMonth } from "../src/lib/periods";
-import { DEFAULT_RATE, type Article } from "../src/lib/model";
+import { isMonth, monthLabel, moveMonth, monthRange } from "../src/lib/periods";
+import { DEFAULT_RATE, currentMonth, type Article } from "../src/lib/model";
 const sold = (patch: Partial<Article> = {}): Article => ({
   id: "fictif-sold",
   name: "Article synthétique",
@@ -138,6 +138,67 @@ describe("Bilan mensuel V2", () => {
   });
 });
 describe("Choix de mois et changement d’année", () => {
+  it.each([
+    ["2026-02", "28"],
+    ["2028-02", "29"],
+    ["2026-04", "30"],
+    ["2100-02", "28"],
+    ["2000-02", "29"],
+    ["9999-12", "31"],
+  ])("utilise les vraies bornes civiles de %s", (month, day) => {
+    expect(monthRange(month)).toEqual({
+      first: `${month}-01`,
+      last: `${month}-${day}`,
+    });
+  });
+  it("sélectionne le mois courant à Paris, même avant minuit UTC", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-12-31T23:30:00Z"));
+      expect(currentMonth()).toBe("2027-01");
+      vi.setSystemTime(new Date("2026-03-31T22:30:00Z"));
+      expect(currentMonth()).toBe("2026-04");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("n’inclut pas la finalisation du 1er mars dans les encaissements de février", () => {
+    const article = sold({
+      purchaseDate: "2028-02-01",
+      saleDate: "2028-03-01",
+      announcedSaleDate: "2028-02-29",
+      announcedSalePrice: 3500,
+    });
+    expect(
+      monthlyReport([article], DEFAULT_RATE, "2028-02").current,
+    ).toMatchObject({
+      revenue: 0,
+      pendingCount: 1,
+      pendingAmount: 3500,
+      purchaseOutflow: 1500,
+    });
+    expect(
+      monthlyReport([article], DEFAULT_RATE, "2028-03").current,
+    ).toMatchObject({ revenue: 3500, pendingCount: 0, purchaseOutflow: 0 });
+  });
+  it("distingue le bénéfice connu du total inconnu sans supprimer le CA", () => {
+    const report = monthlyReport(
+      [
+        sold(),
+        sold({ id: "cout-inconnu", purchaseDate: null, purchasePrice: null }),
+      ],
+      DEFAULT_RATE,
+      "2026-01",
+    );
+    expect(report.current).toMatchObject({
+      revenue: 7000,
+      net: null,
+      knownNet: 1269,
+      completeSoldCount: 1,
+      incompleteProfitCount: 1,
+      contributions: 862,
+    });
+  });
   it("passe de décembre à janvier et inversement", () => {
     expect(moveMonth("2025-12", 1)).toBe("2026-01");
     expect(moveMonth("2026-01", -1)).toBe("2025-12");

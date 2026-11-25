@@ -1,5 +1,5 @@
 import { MAX_CENTS, type Article } from "./model";
-import { isMonth, moveMonth } from "./periods";
+import { isMonth, moveMonth, monthRange } from "./periods";
 
 // Conversion décimale en entier : aucun calcul financier sur un montant en euros flottant.
 export function parseMoney(value: string): number {
@@ -134,7 +134,7 @@ export function totals(articles: Article[], rateBps: number, period?: string) {
     : bought.reduce((s, a) => s + a.purchasePrice!, 0) - purchaseRefunds;
   const asOf =
     period?.length === 7
-      ? period + "-31"
+      ? monthRange(period).last
       : period?.length === 4
         ? period + "-12-31"
         : null;

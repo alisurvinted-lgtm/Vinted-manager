@@ -1,7 +1,13 @@
 import { TEST_VAULT_PHRASE, initializeTestVault } from "./test-vault";
 import Dexie from "dexie";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ManagerDB, deleteArticle, saveArticle, saveRate } from "../src/lib/db";
+import {
+  ManagerDB,
+  deleteArticle,
+  saveArticle,
+  saveRate,
+  completePurchasePrice,
+} from "../src/lib/db";
 import {
   createBackup,
   parseBackup,
@@ -31,6 +37,60 @@ afterEach(async () => {
   await db.delete();
 });
 describe("Articles et persistance IndexedDB", () => {
+  it("complète uniquement le coût manquant sans remplacer les corrections et références existantes", async () => {
+    const a = await saveArticle(
+      input({
+        purchasePrice: null,
+        purchaseDate: null,
+        status: "sold",
+        salePrice: 3500,
+        saleDate: "2026-02-01",
+        saleReference: "a".repeat(64),
+        fees: [{ id: "manuel", type: "Nettoyage", amount: 100 }],
+      }),
+      undefined,
+      db,
+    );
+    const edited = await saveArticle(
+      { ...a, name: "Titre corrigé synthétique", salePrice: 3600 },
+      a.id,
+      db,
+    );
+    await completePurchasePrice(a.id, 1234, db);
+    const updated = await db.articles.get(a.id);
+    expect(updated).toMatchObject({
+      ...edited,
+      purchasePrice: 1234,
+      updatedAt: expect.any(String),
+    });
+    expect(updated?.purchaseDate).toBeNull();
+    expect(db.verno).toBe(4);
+    await expect(completePurchasePrice(a.id, 9999, db)).rejects.toThrow(/déjà/);
+    expect(await db.articles.get(a.id)).toEqual(updated);
+  });
+  it("ne remplace jamais un coût complété par une saisie rapide concurrente", async () => {
+    const a = await saveArticle(input({ purchasePrice: null }), undefined, db);
+    const results = await Promise.allSettled([
+      completePurchasePrice(a.id, 1234, db),
+      completePurchasePrice(a.id, 5678, db),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect((await db.articles.get(a.id))?.purchasePrice).toBe(1234);
+    expect(await db.activities.count()).toBe(2);
+  });
+  it.each([-1, 1.25, Number.NaN, 1_000_000_000])(
+    "refuse un coût rapide invalide %s sans écriture",
+    async (value) => {
+      const a = await saveArticle(
+        input({ purchasePrice: null }),
+        undefined,
+        db,
+      );
+      await expect(completePurchasePrice(a.id, value, db)).rejects.toThrow();
+      expect(await db.articles.get(a.id)).toEqual(a);
+      expect(await db.activities.count()).toBe(1);
+    },
+  );
   it("crée un article et son opération sans données de démonstration", async () => {
     expect(await db.articles.count()).toBe(0);
     const a = await saveArticle(input(), undefined, db);
